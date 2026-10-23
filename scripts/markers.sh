@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 
-MARKER_LOG="${MARKER_LOG:-marker_log.csv}"
+# Do not alter caller shell options when this file is sourced.
+if [[ -n "${BASH_VERSION:-}" && "${BASH_SOURCE[0]:-}" == "$0" ]]; then
+    set -Eeuo pipefail
+fi
+
+SOURCE_PATH="${BASH_SOURCE[0]:-$0}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "$SOURCE_PATH")" && pwd -P)"
+source "$SCRIPT_DIR/utils.sh"
+
+ensure_artifact_dir || exit 1
+MARKER_LOG="${MARKER_LOG:-$(resolve_artifact_path "marker_log.csv")}"
 
 generate_marker() {
     local LABEL="${1:-}"

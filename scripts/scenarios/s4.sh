@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
-source ../utils.sh
-source ../markers.sh
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+source "$SCRIPT_DIR/../utils.sh"
+source "$SCRIPT_DIR/../markers.sh"
 
 initialize_scenario
 
@@ -9,7 +12,7 @@ name=$(generate_marker "S4" "NAME" "16")
 username=$(generate_marker "S4" "USRNAME" "12")
 password=$(generate_marker "S4" "PW" "18")
 
-template_dir="../../lab/warden-json-templates"
+template_dir="$REPO_ROOT/lab/warden-json-templates"
 
 jq --arg name "$name" \
    --arg username "$username" \
