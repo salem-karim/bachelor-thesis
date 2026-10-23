@@ -12,4 +12,4 @@
 - GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1
 - UnZip 6.00 of 20 April 2009, by Debian. Original by Info-ZIP.
 - Bitwarden CLI (bw) 2026.10.0
-
+- Python 3.14.4
