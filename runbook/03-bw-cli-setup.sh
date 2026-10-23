@@ -9,11 +9,16 @@ source "$REPO_ROOT/scripts/utils.sh"
 require_command curl wget unzip jq || exit 1
 ensure_sudo_session || exit 1
 
-choice="$(prompt_service_choice 2)"
+choice="$(prompt_service_choice 2 1 2)"
 
 case "$choice" in
     1)
-        SERVER_URL="https://vault.bitwarden.com"
+        # TODO: Validate and tune this branch for self-hosted Bitwarden VM setup.
+        SERVER_URL="${BW_SERVER_URL:-}"
+        if [[ -z "$SERVER_URL" ]]; then
+            echo "ERROR: Set BW_SERVER_URL for self-hosted Bitwarden VM (example: https://bitwarden.lab)." >&2
+            exit 1
+        fi
         WORK_DIR="$HOME/bitwarden"
         echo "Configuring Bitwarden..."
         ;;

@@ -10,6 +10,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "$SOURCE_PATH")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-${REPO_ROOT}/artifacts}"
 
+source "$SCRIPT_DIR/lib/docker_compose.sh"
+source "$SCRIPT_DIR/lib/service_profile.sh"
+
 ensure_artifact_dir() {
     mkdir -p -- "$ARTIFACTS_DIR" || return 1
 }
@@ -56,37 +59,36 @@ ensure_sudo_session() {
     fi
 }
 
-prompt_service_choice() {
-    local default_choice="${1:-2}"
-    local choice
-
-    while :; do
-        echo "Which service do you want to configure for the CLI?"
-        echo "1) Bitwarden (official cloud)"
-        echo "2) Vaultwarden (self-hosted)"
-        read -rp "Enter your choice [$default_choice]: " choice || return 1
-
-        choice="${choice:-$default_choice}"
-        case "$choice" in
-            1|2)
-                printf '%s\n' "$choice"
-                return 0
-                ;;
-            *)
-                echo "Invalid choice. Please enter 1 or 2." >&2
-                ;;
-        esac
-    done
-}
-
 docker_startup() {
-    local timeout="${1:-120}"
+    local use_docker="${USE_DOCKER_COMPOSE:-auto}"
+    local work_dir compose_file
+
+    initialize_service_context || return 1
+
+    if [[ "$use_docker" == "0" || "$use_docker" == "false" ]]; then
+        echo "Skipping Docker startup (USE_DOCKER_COMPOSE=$use_docker)."
+        return 0
+    fi
 
     require_command docker || return 1
 
-    echo "Starting Docker Compose services..."
+    work_dir="$(resolve_work_dir)" || return 1
+    compose_file="$(resolve_compose_file "$work_dir" || true)"
 
-    docker compose up -d --wait --wait-timeout "$timeout" || {
+    if ! compose_available; then
+        if [[ "$use_docker" == "1" || "$use_docker" == "true" ]]; then
+            echo "ERROR: Docker Compose requested but no compose file was found in WORK_DIR: $work_dir" >&2
+            return 1
+        fi
+
+        echo "Skipping Docker startup (no compose file found in WORK_DIR)."
+        return 0
+    fi
+
+    echo "Starting Docker Compose services from WORK_DIR: $work_dir"
+    echo "Using compose file: $compose_file"
+
+    run_docker_compose up -d || {
         echo "ERROR: Docker Compose services failed to become ready." >&2
         return 1
     }
@@ -98,18 +100,51 @@ initialize_scenario() {
     local email="${1:-testing@example.com}"
     local password="${2:-This24PassMasterW0rd}"
     local session
+    local bw_status
 
-    ensure_sudo_session || return 1
-    require_command docker bw || return 1
+    initialize_service_context || return 1
+
+    if [[ "${SERVICE_CHOICE}" == "3" ]]; then
+        echo "TODO: passbolt scenario flow is not implemented yet." >&2
+        return 1
+    fi
+
+    require_command bw jq || return 1
 
     docker_startup || return 1
 
     echo "Authenticating Bitwarden CLI..." >&2
 
-    session="$(bw login "$email" "$password" --raw)" || {
-        echo "ERROR: Bitwarden login failed" >&2
-        return 1
-    }
+    bw_status="$(bw status --raw 2>/dev/null | jq -r '.status' 2>/dev/null || printf 'unauthenticated')"
+
+    case "$bw_status" in
+        unauthenticated)
+            session="$(bw login "$email" "$password" --raw)" || {
+                echo "ERROR: Bitwarden login failed" >&2
+                return 1
+            }
+            ;;
+        locked)
+            session="$(bw unlock "$password" --raw)" || {
+                echo "ERROR: Bitwarden unlock failed" >&2
+                return 1
+            }
+            ;;
+        unlocked)
+            session="$(bw unlock "$password" --raw 2>/dev/null || true)"
+            if [[ -z "$session" ]]; then
+                bw lock >/dev/null 2>&1 || true
+                session="$(bw unlock "$password" --raw)" || {
+                    echo "ERROR: Failed to refresh Bitwarden session from unlocked state" >&2
+                    return 1
+                }
+            fi
+            ;;
+        *)
+            echo "ERROR: Unknown Bitwarden CLI status: $bw_status" >&2
+            return 1
+            ;;
+    esac
 
     export BW_SESSION="$session"
     unset session
@@ -118,11 +153,36 @@ initialize_scenario() {
 }
 
 dump_process() {
-    local container="${1:-vaultwarden}"
+    local container="${1:-${CONTAINER_NAME:-}}"
     local output_prefix="${2:-core}"
     local host_pid
+    local use_docker="${USE_DOCKER_COMPOSE:-auto}"
+
+    initialize_service_context || return 1
+
+    if [[ "$use_docker" == "0" || "$use_docker" == "false" ]]; then
+        echo "Skipping process dump (USE_DOCKER_COMPOSE=$use_docker)."
+        return 0
+    fi
 
     require_command docker sudo || return 1
+
+    if [[ -z "$container" ]]; then
+        if compose_available; then
+            container="$(run_docker_compose ps -q | head -n1)"
+        fi
+    fi
+
+    if [[ -z "$container" ]]; then
+        if [[ "$use_docker" == "1" || "$use_docker" == "true" ]]; then
+            echo "ERROR: No container target provided for process dump." >&2
+            return 1
+        fi
+
+        echo "Skipping process dump (no running compose container detected)."
+        return 0
+    fi
+
     ensure_sudo_session || return 1
     ensure_artifact_dir || return 1
 
@@ -141,75 +201,104 @@ dump_process() {
 
     echo "Container: $container"
     echo "Host PID: $host_pid"
-    echo "Dumping process memory to: $output_prefix"
+    echo "Dumping process memory to: $output_prefix.$host_pid"
 
     sudo gcore -o "$output_prefix" "$host_pid"
 }
 
 cleanup() {
     local suffix_name="${1:-$(date -u '+%Y%m%dT%H%M%SZ')}"
-    local data_dir="${REPO_ROOT}/lab/vaultwarden/vw-data"
-    local data_baseline="${REPO_ROOT}/lab/vaultwarden/vw-data.bak"
-    local data_archive="${REPO_ROOT}/lab/vaultwarden/vw-data_${suffix_name}"
+    local work_dir data_dir data_baseline data_archive
+    local bw_config_dir bw_data bw_baseline bw_archive
+    local use_docker="${USE_DOCKER_COMPOSE:-auto}"
+    local should_reset_bw="${RESET_BW_STATE:-auto}"
 
-    local bw_config_dir="$HOME/.config/Bitwarden CLI"
-    local bw_data="$bw_config_dir/data.json"
-    local bw_baseline="$bw_config_dir/data.json.bak"
-    local bw_archive="${bw_data}_${suffix_name}"
+    initialize_service_context || return 1
 
-    require_command docker bw || return 1
+    work_dir="$(resolve_work_dir)" || return 1
 
-    if [[ ! -d "$data_baseline" ]]; then
-        echo "ERROR: Missing baseline directory: $data_baseline" >&2
-        return 1
+    data_dir="${DATA_DIR:-}"
+    if [[ -z "$data_dir" ]]; then
+        data_dir="$(detect_data_dir "$work_dir" || true)"
     fi
 
-    if [[ ! -f "$bw_baseline" ]]; then
-        echo "ERROR: Missing baseline file: $bw_baseline" >&2
-        return 1
+    if [[ -n "$data_dir" ]]; then
+        data_baseline="${DATA_BASELINE:-$data_dir.bak}"
+        data_archive="${DATA_ARCHIVE:-${data_dir}_${suffix_name}}"
     fi
 
-    if [[ -e "$data_archive" || -e "$bw_archive" ]]; then
-        echo "ERROR: An archive already exists for suffix: $suffix_name" >&2
-        return 1
-    fi
+    bw_config_dir="${BW_CONFIG_DIR:-$HOME/.config/Bitwarden CLI}"
+    bw_data="${BW_DATA_FILE:-$bw_config_dir/data.json}"
+    bw_baseline="${BW_BASELINE_FILE:-$bw_data.bak}"
+    bw_archive="${BW_ARCHIVE_FILE:-${bw_data}_${suffix_name}}"
 
-    echo "Stopping Docker Compose services..."
-    docker compose down || {
-        echo "ERROR: docker compose down failed" >&2
-        return 1
-    }
+    if [[ -n "$data_dir" ]]; then
+        if [[ ! -d "$data_baseline" ]]; then
+            echo "ERROR: Missing baseline directory: $data_baseline" >&2
+            return 1
+        fi
 
-    if [[ -e "$data_dir" ]]; then
-        mv -- "$data_dir" "$data_archive" || return 1
-        echo "Archived Vaultwarden data: $data_archive"
-    fi
+        if [[ -e "$data_archive" ]]; then
+            echo "ERROR: Data archive already exists: $data_archive" >&2
+            return 1
+        fi
 
-    cp -a -- "$data_baseline" "$data_dir" || {
-        echo "ERROR: Failed to restore Vaultwarden baseline." >&2
-        return 1
-    }
+        if [[ -e "$data_dir" ]]; then
+            mv -- "$data_dir" "$data_archive" || return 1
+            echo "Archived service data: $data_archive"
+        fi
 
-    echo "Restored Vaultwarden baseline."
-
-    echo "Archiving Bitwarden CLI state..."
-
-    if [[ -f "$bw_data" ]]; then
-        cp -a -- "$bw_data" "$bw_archive" || {
-            echo "ERROR: Failed to archive Bitwarden CLI state." >&2
+        cp -a -- "$data_baseline" "$data_dir" || {
+            echo "ERROR: Failed to restore baseline directory: $data_baseline" >&2
             return 1
         }
-        echo "Archived Bitwarden CLI state: $bw_archive"
+
+        echo "Restored service baseline data."
+    else
+        echo "No DATA_DIR detected; skipping service data restore."
     fi
 
-    bw logout >/dev/null 2>&1 || true
-    unset BW_SESSION
+    if [[ "$should_reset_bw" == "1" || "$should_reset_bw" == "true" ]] ||
+       [[ "$should_reset_bw" == "auto" && -f "$bw_baseline" ]]; then
+        require_command bw || return 1
 
-    cp -a -- "$bw_baseline" "$bw_data" || {
-        echo "ERROR: Failed to restore Bitwarden CLI baseline." >&2
-        return 1
-    }
+        if [[ -e "$bw_archive" ]]; then
+            echo "ERROR: Bitwarden CLI archive already exists: $bw_archive" >&2
+            return 1
+        fi
 
-    echo "Restored Bitwarden CLI baseline."
+        echo "Archiving Bitwarden CLI state..."
+
+        if [[ -f "$bw_data" ]]; then
+            cp -a -- "$bw_data" "$bw_archive" || {
+                echo "ERROR: Failed to archive Bitwarden CLI state." >&2
+                return 1
+            }
+            echo "Archived Bitwarden CLI state: $bw_archive"
+        fi
+
+        # Keep account enrollment intact so restoring data.json.bak preserves logged-in state.
+        bw lock >/dev/null 2>&1 || true
+        unset BW_SESSION
+
+        cp -a -- "$bw_baseline" "$bw_data" || {
+            echo "ERROR: Failed to restore Bitwarden CLI baseline." >&2
+            return 1
+        }
+
+        echo "Restored Bitwarden CLI baseline."
+    else
+        echo "No Bitwarden CLI baseline configured; skipping CLI state restore."
+    fi
+
+    if [[ "$use_docker" != "0" && "$use_docker" != "false" ]] && compose_available; then
+        require_command docker || return 1
+        echo "Stopping Docker Compose services in: $work_dir"
+        run_docker_compose down || {
+            echo "ERROR: docker compose down failed" >&2
+            return 1
+        }
+    fi
+
     echo "Cleanup complete."
 }

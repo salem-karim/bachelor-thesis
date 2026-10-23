@@ -5,6 +5,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../utils.sh"
 source "$SCRIPT_DIR/../markers.sh"
+prefix="$(date -u '+%Y%m%dT%H%M%SZ')_S5_core_"
 
 initialize_scenario
 
@@ -35,5 +36,5 @@ bw get item "$item_id" |
   bw encode |
   bw edit item "$item_id"
 
-dump_process
+dump_process "" "$prefix"
 cleanup

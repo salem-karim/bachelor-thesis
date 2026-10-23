@@ -6,10 +6,11 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 source "$REPO_ROOT/scripts/utils.sh"
 
-choice="$(prompt_service_choice 2)"
+choice="$(prompt_service_choice 2 1 2 3)"
 
 case "$choice" in
     1)
+        # TODO: Confirm data directory layout for self-hosted Bitwarden VM.
         WORK_DIR="$HOME/bitwarden"
         DATA_DIR="$WORK_DIR/bw-data"
         bitwarden_variant=true
@@ -27,6 +28,7 @@ case "$choice" in
         WORK_DIR="$HOME/passbolt"
         DATA_DIR="$WORK_DIR/passbolt-data"
         bitwarden_variant=false
+        # TODO: Implement passbolt-specific CLI/session backup strategy.
         ;;
     *)
         echo "Invalid choice. Exiting." >&2

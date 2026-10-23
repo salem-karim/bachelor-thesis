@@ -5,6 +5,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../utils.sh"
 source "$SCRIPT_DIR/../markers.sh"
+prefix="$(date -u '+%Y%m%dT%H%M%SZ')_S4_core_"
 
 initialize_scenario
 
@@ -24,5 +25,5 @@ jq --arg name "$name" \
   bw encode |
   bw create item
 
-dump_process
+dump_process "" "$prefix"
 cleanup

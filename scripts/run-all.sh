@@ -5,6 +5,8 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/utils.sh"
 
+initialize_service_context || exit 1
+
 usage() {
     cat <<'EOF'
 Usage: run-all.sh [scenario ...]
