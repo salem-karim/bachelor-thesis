@@ -28,7 +28,7 @@ generate_marker() {
     HEX_DATA="$(openssl rand -hex "$(( (HEX_LENGTH + 1) / 2 ))")" || return 1
     HEX_DATA="${HEX_DATA:0:$HEX_LENGTH}"
 
-    MARKER="${PREFIX}_${HEX_DATA}"
+    MARKER="${PREFIX}_${HEX_DATA}_${LABEL}"
     TIMESTAMP="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
     if [[ ! -s "$MARKER_LOG" ]]; then
