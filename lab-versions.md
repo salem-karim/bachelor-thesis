@@ -1,0 +1,15 @@
+- Virt-Manager 5.1.0
+- Compiled against library: libvirt 12.7.0
+- Using library: libvirt 12.7.0
+- Using API: QEMU 12.7.0
+- Running hypervisor: QEMU 11.1.1
+- VM with 2 Cores & 6GB RAM, 50GB Space
+
+- Ubuntu 26.04.1 LTS (GNU/Linux 7.0.0-38-generic x86_64)
+- Docker version 29.9.2, build a82e528
+- Vaultwarden Server 1.37.4
+- Caddy 2.11.7
+- GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1
+- UnZip 6.00 of 20 April 2009, by Debian. Original by Info-ZIP.
+- Bitwarden CLI (bw) 2026.10.0
+
