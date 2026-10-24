@@ -27,6 +27,10 @@ sleep 5
 CERT_FILE="$WORK_DIR/caddy-data/caddy/pki/authorities/local/root.crt"
 scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/caddy-root.crt"
 
+# Set environment variables to run the scripts later
+echo "export COMPOSE_FILE=\"$WORK_DIR/compose.yml\"" >> ~/.bashrc
+echo "export SERVICE_CHOICE=2" >> ~/.bashrc
+
 # Then update your trusted certificates and add a DNS Record with the VMs IP
 # This is the example on a Ubuntu Host, find the VMs IP using `ip a`
 # echo '192.168.XXX.XXX vaultwarden.lab' | sudo tee -a /etc/hosts
