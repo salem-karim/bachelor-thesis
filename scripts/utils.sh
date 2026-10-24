@@ -63,8 +63,6 @@ docker_startup() {
     local use_docker="${USE_DOCKER_COMPOSE:-auto}"
     local work_dir compose_file
 
-    initialize_service_context || return 1
-
     if [[ "$use_docker" == "0" || "$use_docker" == "false" ]]; then
         echo "Skipping Docker startup (USE_DOCKER_COMPOSE=$use_docker)."
         return 0
@@ -101,8 +99,6 @@ initialize_scenario() {
     local password="${2:-This24PassMasterW0rd}"
     local session
     local bw_status
-
-    initialize_service_context || return 1
 
     if [[ "${SERVICE_CHOICE}" == "3" ]]; then
         echo "TODO: passbolt scenario flow is not implemented yet." >&2
@@ -158,8 +154,6 @@ dump_process() {
     local host_pid
     local use_docker="${USE_DOCKER_COMPOSE:-auto}"
 
-    initialize_service_context || return 1
-
     if [[ "$use_docker" == "0" || "$use_docker" == "false" ]]; then
         echo "Skipping process dump (USE_DOCKER_COMPOSE=$use_docker)."
         return 0
@@ -213,14 +207,9 @@ cleanup() {
     local use_docker="${USE_DOCKER_COMPOSE:-auto}"
     local should_reset_bw="${RESET_BW_STATE:-auto}"
 
-    initialize_service_context || return 1
-
     work_dir="$(resolve_work_dir)" || return 1
 
     data_dir="${DATA_DIR:-}"
-    if [[ -z "$data_dir" ]]; then
-        data_dir="$(detect_data_dir "$work_dir" || true)"
-    fi
 
     if [[ -n "$data_dir" ]]; then
         data_baseline="${DATA_BASELINE:-$data_dir.bak}"

@@ -5,8 +5,6 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/utils.sh"
 
-initialize_service_context || exit 1
-
 usage() {
     cat <<'EOF'
 Usage: run-all.sh [scenario ...]
@@ -42,16 +40,13 @@ for scenario in "${SCENARIOS[@]}"; do
         usage >&2
         exit 1
     fi
-done
 
-for scenario in "${SCENARIOS[@]}"; do
     scenario_path="$SCRIPT_DIR/scenarios/s${scenario}.sh"
 
     if [[ ! -f "$scenario_path" ]]; then
         echo "ERROR: Scenario script not found: $scenario_path" >&2
         exit 1
     fi
-
     echo "==> Running scenario S${scenario}"
 
     ensure_sudo_session || exit 1

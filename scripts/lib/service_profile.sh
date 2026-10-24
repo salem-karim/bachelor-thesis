@@ -2,9 +2,9 @@
 
 service_choice_label() {
     case "$1" in
-        1) printf '%s\n' 'Bitwarden (self-hosted VM)' ;;
-        2) printf '%s\n' 'Vaultwarden (self-hosted VM)' ;;
-        3) printf '%s\n' 'Passbolt (self-hosted VM)' ;;
+        1) printf '%s\n' 'Bitwarden' ;;
+        2) printf '%s\n' 'Vaultwarden' ;;
+        3) printf '%s\n' 'Passbolt' ;;
         *) return 1 ;;
     esac
 }
@@ -72,45 +72,17 @@ apply_service_profile() {
     export DATA_DIR
 }
 
-verify_service_prereqs() {
-    local use_docker="${USE_DOCKER_COMPOSE:-auto}"
-
-    if [[ "${SERVICE_CHOICE}" == "1" || "${SERVICE_CHOICE}" == "2" ]]; then
-        require_command bw || return 1
-    fi
-
-    if [[ "${SERVICE_CHOICE}" == "3" ]]; then
-        local passbolt_cli="${PASSBOLT_CLI_COMMAND:-passbolt}"
-        require_command "$passbolt_cli" || {
-            echo "TODO: Set PASSBOLT_CLI_COMMAND to the passbolt CLI binary on this VM." >&2
-            return 1
-        }
-    fi
-
-    if [[ "$use_docker" != "0" && "$use_docker" != "false" ]]; then
-        require_command docker || return 1
-    fi
-}
-
 initialize_service_context() {
-    local default_choice="${1:-2}"
-
     if [[ -n "${SERVICE_CONTEXT_READY:-}" ]]; then
         return 0
     fi
 
-    if [[ -n "${SERVICE_CHOICE:-}" ]]; then
-        :
-    elif [[ -t 0 ]]; then
-        SERVICE_CHOICE="$(prompt_service_choice "$default_choice" 1 2 3)" || return 1
-        export SERVICE_CHOICE
-    else
-        echo "ERROR: SERVICE_CHOICE is not set and no interactive TTY is available." >&2
+    if [[ -z "${SERVICE_CHOICE:-}" ]]; then
+        echo "ERROR: SERVICE_CHOICE must be set to 1 (Bitwarden), 2 (Vaultwarden), or 3 (Passbolt)." >&2
         return 1
     fi
 
     apply_service_profile || return 1
-    verify_service_prereqs || return 1
 
     SERVICE_CONTEXT_READY=1
     export SERVICE_CONTEXT_READY
