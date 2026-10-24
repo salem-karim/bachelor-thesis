@@ -13,12 +13,12 @@ ensure_artifact_dir || exit 1
 MARKER_LOG="${MARKER_LOG:-$(resolve_artifact_path "marker_log.csv")}"
 
 generate_marker() {
-    local LABEL="${1:-}"
+    local LABEL="${1:-S0}"
     local PREFIX="${2:-PW}"
     local HEX_LENGTH="${3:-12}"
 
-    if [[ ! "$LABEL" =~ ^S[1-7]$ ]]; then
-        echo "Usage: generate_marker S1-S7 [PREFIX] [HEX_LENGTH]" >&2
+    if [[ ! "$LABEL" =~ ^S[0-7]$ ]]; then
+        echo "Usage: generate_marker S0-S7 [PREFIX] [HEX_LENGTH]" >&2
         return 1
     fi
 
