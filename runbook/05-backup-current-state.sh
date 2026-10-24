@@ -37,6 +37,7 @@ case "$choice" in
 esac
 
 if [[ "$bitwarden_variant" = true ]]; then
+    rm -rf "$HOME/.config/Bitwarden CLI"
     mkdir -p "$HOME/.config/Bitwarden CLI"
     bw logout >/dev/null 2>&1 || true
     cp -a "$HOME/.config/Bitwarden CLI/data.json" "$HOME/.config/Bitwarden CLI/data.json.bak"
