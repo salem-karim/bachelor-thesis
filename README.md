@@ -87,7 +87,8 @@ python3 ../scripts/memory_analysis.py \
 ```
 
 The script writes sorted strings, baseline/previous diffs, marker results,
-database-value representation searches, and `jwt_search.csv`. JWT rows include
+database-value representation searches (raw, hexadecimal, standard Base64,
+and URL-safe Base64), and `jwt_search.csv`. JWT rows include
 the recovered JWT-like token text and offset; protect this output accordingly.
 Marker and database-value reports intentionally record hashes/counts rather
 than recovered marker or database values.
@@ -99,11 +100,16 @@ python3 scripts/classify_database.py <database.db> \
   --output artifacts/column_classification.csv
 ```
 
-The classifier reports populated columns, observed formats, and cautious
-roles for common lifecycle fields (`created_at`, `updated_at`), identifiers,
-tokens, keys, account metadata, and Vaultwarden-specific columns. It does not
-prove encryption; interpretation still requires the schema and application
-version.
+The classifier enumerates every SQLite table and column and reports populated
+values, observed formats, a thesis category, and a `manual_review` flag. The
+categories are **P** (plaintext personal data), **S** (plaintext
+security-relevant secret), **V** (password verifier), **K** (wrapped/encrypted
+key material), **C** (ciphertext), and **M** (metadata). EncString-shaped
+values and nested EncStrings in JSON are detected, but format matching does
+not prove cryptographic protection; interpret the report with the schema and
+Vaultwarden version. The SQLite database is the primary input. Preserve the
+database WAL, RSA key file, attachment files, and configuration file in the
+same artifact run for the persistent-storage review.
 
 ## Reset and troubleshooting
 

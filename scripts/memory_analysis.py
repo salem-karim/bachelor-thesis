@@ -8,7 +8,7 @@ For each core dump this script:
   3. optionally runs a diff against the preceding dump;
   4. searches for exact marker strings from marker_log.csv;
   5. optionally searches selected SQLite column values (e.g. password hash,
-     salt) in raw, hex, and Base64 representations;
+     salt) in raw, hex, standard Base64, and URL-safe Base64 representations;
   6. optionally searches JWT-like token patterns and records matching token
      text in the JWT CSV output.
 
@@ -245,6 +245,8 @@ def database_value_search(core: Path, db_values: list[dict]) -> list[dict]:
                 "hex_upper": raw.hex().upper().encode("ascii"),
                 "base64": base64.b64encode(raw),
                 "base64_no_padding": base64.b64encode(raw).rstrip(b"="),
+                "base64_urlsafe": base64.urlsafe_b64encode(raw),
+                "base64_urlsafe_no_padding": base64.urlsafe_b64encode(raw).rstrip(b"="),
             }
             for representation, pattern in variants.items():
                 offsets = find_all(mm, pattern)

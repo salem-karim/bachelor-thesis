@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Concise SQLite data inventory for password-manager persistent storage.
+Classify Vaultwarden SQLite columns for the persistent-storage instrument.
 
 Only columns containing at least one non-NULL, non-empty value are included
 by default. The output reports aggregate formats, not actual stored values.
 
-Protection labels are cautious: observed formats alone cannot prove that
-a value is encrypted or that its encryption is secure.
+Each populated column receives one thesis category:
+P (plaintext personal data), S (plaintext security-relevant secret),
+V (password verifier), K (wrapped/encrypted key material), C (ciphertext),
+or M (metadata). The category is an evidence-based default and ambiguous
+or mixed columns are explicitly marked for manual review.
 """
 
 import argparse
@@ -132,6 +135,53 @@ def value_format(value):
         return "READABLE_TEXT"
 
 
+def contains_encstring(value):
+    """Return whether a value or nested JSON value contains EncString text."""
+    if isinstance(value, str):
+        if ENC_RE.fullmatch(value.strip()):
+            return True
+        try:
+            value = json.loads(value)
+        except (ValueError, TypeError):
+            return False
+    if isinstance(value, dict):
+        return any(contains_encstring(item) for item in value.values())
+    if isinstance(value, list):
+        return any(contains_encstring(item) for item in value)
+    return False
+
+
+def thesis_category(table, column, values, formats):
+    """Assign the six-category thesis classification from schema and values."""
+    lowered = column.lower()
+    table_lowered = table.lower()
+    nonempty = [v for v in values if v is not None and not (isinstance(v, str) and not v.strip())]
+    encrypted_count = sum(contains_encstring(v) for v in nonempty)
+    readable_formats = {"READABLE_TEXT", "EMAIL", "UUID", "TIMESTAMP", "JSON", "NUMERIC"}
+
+    if lowered in {"password_hash", "salt"} or lowered.endswith("_password_hash"):
+        return "V", "Server-side password verifier or its salt."
+    if any(token in lowered for token in ("private_key", "wrapped_key", "encrypted_key", "master_key")):
+        return "K", "Key material; verify whether the observed representation is wrapped/encrypted."
+    if lowered in {"twofactor_secret", "two_factor_secret", "api_key", "client_secret"}:
+        return "S", "Plaintext security-relevant secret by schema meaning."
+    if lowered.endswith("_token") or lowered in {"token", "secret", "password", "password_hint", "hint"}:
+        return "S" if lowered not in {"password_hint", "hint"} else "P", "Sensitive plaintext field; verify application semantics."
+    if table_lowered == "ciphers" and lowered in {"data", "fields", "password_history", "notes"}:
+        return "C", "Vault item contents; nested EncString fields are ciphertext."
+    if encrypted_count and encrypted_count == len(nonempty):
+        return "C", "All populated values contain EncString-shaped ciphertext."
+    if encrypted_count:
+        return "C", "Mixed column; some values contain EncString-shaped ciphertext."
+    if lowered in {"email", "name", "username", "password_hint", "hint", "file_name"}:
+        return "P", "Plaintext personal or account data."
+    if set(formats) & readable_formats:
+        return "M", "Readable identifier, lifecycle, or application metadata."
+    if "BINARY" in formats:
+        return "K", "Binary key material candidate; confirm against schema and application use."
+    return "M", "No stronger category was established from schema or observed format."
+
+
 def column_role(table, column):
     role_assessment = ROLE_MAP.get(table, {}).get(column)
     if role_assessment:
@@ -149,6 +199,7 @@ def column_role(table, column):
 
 def assess(table, column, values, formats):
     role, assessment = column_role(table, column)
+    category, category_note = thesis_category(table, column, values, formats)
 
     populated_formats = {
         key: count for key, count in formats.items() if key not in {"NULL", "EMPTY"} and count
@@ -169,7 +220,11 @@ def assess(table, column, values, formats):
         role = "Structured cipher payload"
         assessment = "Mixed/nested fields possible; inspect JSON fields individually"
 
-    notes = ""
+    mixed_formats = len(populated_formats) > 1
+    manual_review = mixed_formats or category in {"K", "C"} and (
+        "verify" in category_note.lower() or "mixed" in category_note.lower()
+    )
+    notes = category_note
     if "ENCRYPTED_FORMAT_CANDIDATE" in formats:
         notes = "Format match is not proof of cryptographic protection."
     if assessment == "Unknown":
@@ -180,6 +235,8 @@ def assess(table, column, values, formats):
     return {
         "table": table,
         "column": column,
+        "category": category,
+        "manual_review": "yes" if manual_review else "no",
         "rows_with_data": sum(
             1 for v in values if v is not None and not (isinstance(v, str) and not v.strip())
         ),
@@ -246,6 +303,8 @@ def main():
         fields = [
             "table",
             "column",
+            "category",
+            "manual_review",
             "rows_with_data",
             "data_role",
             "protection_assessment",
