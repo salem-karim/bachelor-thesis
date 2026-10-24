@@ -9,11 +9,15 @@ For each core dump this script:
   4. searches for exact marker strings from marker_log.csv;
   5. optionally searches selected SQLite column values (e.g. password hash,
      salt) in raw, hex, and Base64 representations;
-  6. optionally counts JWT-like token patterns without writing token contents.
+  6. optionally searches JWT-like token patterns and records matching token
+     text in the JWT CSV output.
 
-It does not modify core dumps or the database. CSV output contains counts and
-metadata, not recovered marker/JWT contents.
+It does not modify core dumps or the database. Marker and database-value CSV
+outputs avoid recovered values; JWT matches are explicitly written to the JWT
+CSV because token recovery is the purpose of that report.
 """
+
+from __future__ import annotations
 
 import argparse
 import base64
@@ -262,22 +266,21 @@ def database_value_search(core: Path, db_values: list[dict]) -> list[dict]:
     return rows
 
 
-def jwt_search(core: Path) -> dict:
-    """Count JWT-like ASCII patterns and offsets, without recording token text."""
-    result = {"jwt_like_count": 0, "jwt_first_offset_hex": ""}
+def jwt_search(core: Path) -> list[dict]:
+    """Return each JWT-like ASCII match and its offset."""
+    result = []
     if core.stat().st_size == 0:
         return result
 
     with core.open("rb") as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
-        count = 0
-        first_offset = None
         for match in JWT_RE.finditer(mm):
-            count += 1
-            if first_offset is None:
-                first_offset = match.start()
-        result["jwt_like_count"] = count
-        if first_offset is not None:
-            result["jwt_first_offset_hex"] = f"0x{first_offset:x}"
+            result.append(
+                {
+                    "jwt_like_count": 1,
+                    "jwt_first_offset_hex": f"0x{match.start():x}",
+                    "jwt_token": match.group().decode("ascii"),
+                }
+            )
     return result
 
 
@@ -438,14 +441,29 @@ def main():
                     }
                 )
 
-            jwt_rows.append(
-                {
-                    "core_file": core.name,
-                    "scenario": row["scenario"],
-                    "run_id": row["run_id"],
-                    **jwt_search(core),
-                }
-            )
+            jwt_matches = jwt_search(core)
+            if jwt_matches:
+                for match in jwt_matches:
+                    jwt_rows.append(
+                        {
+                            "core_file": core.name,
+                            "scenario": row["scenario"],
+                            "run_id": row["run_id"],
+                            "jwt_like_count": len(jwt_matches),
+                            **match,
+                        }
+                    )
+            else:
+                jwt_rows.append(
+                    {
+                        "core_file": core.name,
+                        "scenario": row["scenario"],
+                        "run_id": row["run_id"],
+                        "jwt_like_count": 0,
+                        "jwt_first_offset_hex": "",
+                        "jwt_token": "",
+                    }
+                )
 
         except Exception as exc:
             row["status"] = "error"
@@ -503,7 +521,14 @@ def main():
     write_csv(
         Path(args.jwt_output),
         jwt_rows,
-        ["core_file", "scenario", "run_id", "jwt_like_count", "jwt_first_offset_hex"],
+        [
+            "core_file",
+            "scenario",
+            "run_id",
+            "jwt_like_count",
+            "jwt_first_offset_hex",
+            "jwt_token",
+        ],
     )
 
     print("\nWrote:")

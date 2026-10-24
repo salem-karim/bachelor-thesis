@@ -86,6 +86,15 @@ docker_startup() {
     echo "Starting Docker Compose services from WORK_DIR: $work_dir"
     echo "Using compose file: $compose_file"
 
+    running_containers="$(run_docker_compose ps -q --status running)"
+    if [[ -n "$running_containers" ]]; then
+        echo "Running Compose containers detected; stopping them before startup."
+        run_docker_compose down || {
+            echo "ERROR: Could not stop existing Docker Compose services." >&2
+            return 1
+        }
+    fi
+
     run_docker_compose up -d || {
         echo "ERROR: Docker Compose services failed to become ready." >&2
         return 1

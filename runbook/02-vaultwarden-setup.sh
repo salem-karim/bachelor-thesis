@@ -20,6 +20,7 @@ sudo setcap cap_net_bind_service=ep /usr/bin/rootlesskit
 systemctl --user restart docker
 
 cd "$WORK_DIR" || exit 1
+docker compose down --remove-orphans
 docker compose up -d
 
 sleep 5

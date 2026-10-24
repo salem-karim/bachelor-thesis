@@ -72,6 +72,32 @@ ROLE_MAP = {
     },
 }
 
+COMMON_COLUMN_MAP = {
+    "created_at": ("Creation timestamp", "Readable metadata; not secret by itself"),
+    "updated_at": ("Last-update timestamp", "Readable metadata; not secret by itself"),
+    "deleted_at": ("Deletion timestamp", "Readable metadata; not secret by itself"),
+    "id": ("Record identifier", "Identifier; not secret by itself"),
+    "uuid": ("Record identifier", "Identifier; not secret by itself"),
+    "email": ("Email address", "Potentially plaintext personal data; verify observed values"),
+    "username": ("Username", "Potentially plaintext account metadata"),
+    "status": ("Status or state", "Application metadata; not secret by itself"),
+    "type": ("Type discriminator", "Application metadata; not secret by itself"),
+    "atype": ("Type discriminator", "Application metadata; not secret by itself"),
+    "enabled": ("Enabled/disabled flag", "Application metadata; not secret by itself"),
+    "name": ("Display or resource name", "Check observed format and application semantics"),
+    "description": ("Description metadata", "Check observed format and application semantics"),
+    "url": ("URL metadata", "Check observed format and application semantics"),
+    "refresh_token": ("Refresh token", "Sensitive bearer credential; treat as secret"),
+    "access_token": ("Access token", "Sensitive bearer credential; treat as secret"),
+    "token": ("Authentication or session token", "Potentially sensitive bearer credential"),
+    "password": ("Password or password payload", "Secret; protection must be verified"),
+    "password_hash": ("Password verification hash", "Password hash; not reversible encryption"),
+    "salt": ("Password-hashing salt", "Hashing parameter; not a password"),
+    "secret": ("Secret material", "Sensitive; protection must be verified"),
+    "private_key": ("Private-key material", "Sensitive key material; protection must be verified"),
+    "public_key": ("Public-key material", "Public-key material; not secret by itself"),
+}
+
 
 def quote_ident(value):
     return '"' + value.replace('"', '""') + '"'
@@ -106,11 +132,23 @@ def value_format(value):
         return "READABLE_TEXT"
 
 
+def column_role(table, column):
+    role_assessment = ROLE_MAP.get(table, {}).get(column)
+    if role_assessment:
+        return role_assessment
+    if column in COMMON_COLUMN_MAP:
+        return COMMON_COLUMN_MAP[column]
+    if column.endswith("_uuid") or column.endswith("_id"):
+        return ("Related-record identifier", "Identifier; not secret by itself")
+    if column.endswith("_at") or column.endswith("_on"):
+        return ("Lifecycle timestamp", "Readable metadata; not secret by itself")
+    if column.endswith("_token") or column.endswith("_key"):
+        return ("Sensitive credential or key material", "Sensitive; protection must be verified")
+    return ("Unknown; inspect schema and application use", "Unknown")
+
+
 def assess(table, column, values, formats):
-    role, assessment = ROLE_MAP.get(table, {}).get(
-        column,
-        ("Unknown; inspect schema and application use", "Unknown"),
-    )
+    role, assessment = column_role(table, column)
 
     populated_formats = {
         key: count for key, count in formats.items() if key not in {"NULL", "EMPTY"} and count
