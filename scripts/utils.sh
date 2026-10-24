@@ -98,49 +98,24 @@ initialize_scenario() {
     local email="${1:-testing@example.com}"
     local password="${2:-This24PassMasterW0rd}"
     local session
-    local bw_status
 
     if [[ "${SERVICE_CHOICE}" == "3" ]]; then
         echo "TODO: passbolt scenario flow is not implemented yet." >&2
         return 1
     fi
 
-    require_command bw jq || return 1
+    require_command bw || return 1
 
     docker_startup || return 1
 
-    echo "Authenticating Bitwarden CLI..." >&2
+    echo "Logging out any existing Bitwarden CLI session..." >&2
+    bw logout >/dev/null 2>&1 || true
 
-    bw_status="$(bw status --raw 2>/dev/null | jq -r '.status' 2>/dev/null || printf 'unauthenticated')"
-
-    case "$bw_status" in
-        unauthenticated)
-            session="$(bw login "$email" "$password" --raw)" || {
-                echo "ERROR: Bitwarden login failed" >&2
-                return 1
-            }
-            ;;
-        locked)
-            session="$(bw unlock "$password" --raw)" || {
-                echo "ERROR: Bitwarden unlock failed" >&2
-                return 1
-            }
-            ;;
-        unlocked)
-            session="$(bw unlock "$password" --raw 2>/dev/null || true)"
-            if [[ -z "$session" ]]; then
-                bw lock >/dev/null 2>&1 || true
-                session="$(bw unlock "$password" --raw)" || {
-                    echo "ERROR: Failed to refresh Bitwarden session from unlocked state" >&2
-                    return 1
-                }
-            fi
-            ;;
-        *)
-            echo "ERROR: Unknown Bitwarden CLI status: $bw_status" >&2
-            return 1
-            ;;
-    esac
+    echo "Logging in to Bitwarden CLI..." >&2
+    session="$(bw login "$email" "$password" --raw)" || {
+        echo "ERROR: Bitwarden login failed" >&2
+        return 1
+    }
 
     export BW_SESSION="$session"
     unset session
@@ -209,6 +184,12 @@ cleanup() {
 
     work_dir="$(resolve_work_dir)" || return 1
 
+    if [[ "${SERVICE_CHOICE}" == "1" || "${SERVICE_CHOICE}" == "2" ]]; then
+        require_command bw || return 1
+        bw logout >/dev/null 2>&1 || true
+        unset BW_SESSION
+    fi
+
     data_dir="${DATA_DIR:-}"
 
     if [[ -n "$data_dir" ]]; then
@@ -249,8 +230,6 @@ cleanup() {
 
     if [[ "$should_reset_bw" == "1" || "$should_reset_bw" == "true" ]] ||
        [[ "$should_reset_bw" == "auto" && -f "$bw_baseline" ]]; then
-        require_command bw || return 1
-
         if [[ -e "$bw_archive" ]]; then
             echo "ERROR: Bitwarden CLI archive already exists: $bw_archive" >&2
             return 1
@@ -265,10 +244,6 @@ cleanup() {
             }
             echo "Archived Bitwarden CLI state: $bw_archive"
         fi
-
-        # Keep account enrollment intact so restoring data.json.bak preserves logged-in state.
-        bw lock >/dev/null 2>&1 || true
-        unset BW_SESSION
 
         cp -a -- "$bw_baseline" "$bw_data" || {
             echo "ERROR: Failed to restore Bitwarden CLI baseline." >&2

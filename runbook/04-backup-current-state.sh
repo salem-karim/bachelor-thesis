@@ -38,6 +38,7 @@ esac
 
 if [[ "$bitwarden_variant" = true ]]; then
     mkdir -p "$HOME/.config/Bitwarden CLI"
+    bw logout >/dev/null 2>&1 || true
     cp -a "$HOME/.config/Bitwarden CLI/data.json" "$HOME/.config/Bitwarden CLI/data.json.bak"
 fi
 

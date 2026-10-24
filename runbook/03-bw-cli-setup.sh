@@ -68,3 +68,5 @@ bw get template item \
         | .login = {"username": $username, "password": $password}' \
   | bw encode \
   | bw create item
+
+bw logout
