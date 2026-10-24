@@ -297,7 +297,10 @@ def main():
         "--strings-dir", default="strings", help="Directory for extracted sorted strings."
     )
     p.add_argument("--diff-dir", default="diffs", help="Directory for diff output files.")
-    p.add_argument("--baseline", help="Baseline strings file (e.g. strings/S1_sorted.txt).")
+    p.add_argument(
+        "--baseline",
+        help="Baseline core dump; its strings will be extracted and sorted automatically.",
+    )
     p.add_argument("--min-string-length", type=int, default=8)
     p.add_argument(
         "--markers", default="marker_log.csv", help="Marker CSV; use --no-markers to disable."
@@ -329,9 +332,16 @@ def main():
     if not diff_cmd:
         p.error("GNU diff is required.")
 
-    baseline = Path(args.baseline) if args.baseline else None
-    if baseline and not baseline.is_file():
-        p.error(f"Baseline file not found: {baseline}")
+    baseline_core = Path(args.baseline) if args.baseline else None
+    baseline_strings = None
+
+    if baseline_core and not baseline_core.is_file():
+        p.error(f"Baseline core dump not found: {baseline_core}")
+
+    baseline_strings: Path | None = None
+
+    if baseline_core:
+        baseline_strings = strings_dir / f"baseline_{baseline_core.name}.sorted.txt"
 
     marker_path = None if args.no_markers else Path(args.markers)
     if marker_path and not marker_path.is_file():
@@ -349,6 +359,23 @@ def main():
     cores = sorted(path for path in core_dir.glob(args.pattern) if path.is_file())
     if not cores:
         p.error(f"No files matched {args.pattern!r} in {core_dir}")
+
+    if baseline_core is not None:
+        try:
+            print(f"Preparing baseline from core dump: {baseline_core}", flush=True)
+
+            baseline_output = strings_dir / f"baseline_{baseline_core.name}.sorted.txt"
+
+            run_sort_strings(
+                baseline_core,
+                baseline_output,
+                args.min_string_length,
+            )
+
+            baseline_strings = baseline_output
+
+        except Exception as exc:
+            p.error(f"Could not prepare baseline core dump: {exc}")
 
     main_rows, marker_rows, db_rows, jwt_rows = [], [], [], []
     previous_strings = None
@@ -373,9 +400,13 @@ def main():
         try:
             run_sort_strings(core, strings_file, args.min_string_length)
 
-            if baseline:
+            if baseline_strings:
                 diff_path = diff_dir / f"{core.name}.vs_baseline.new.txt"
-                count = run_diff_new_lines(baseline, strings_file, diff_path)
+                count = run_diff_new_lines(
+                    baseline_strings,
+                    strings_file,
+                    diff_path,
+                )
                 row["baseline_diff_file"] = str(diff_path)
                 row["baseline_new_strings"] = count
 
