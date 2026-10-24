@@ -178,11 +178,42 @@ dump_process() {
 cleanup() {
     local suffix_name="${1:-$(date -u '+%Y%m%dT%H%M%SZ')}"
     local work_dir data_dir data_baseline data_archive
+    local caddy_log caddy_log_archive
     local bw_config_dir bw_data bw_baseline bw_archive
     local use_docker="${USE_DOCKER_COMPOSE:-auto}"
     local should_reset_bw="${RESET_BW_STATE:-auto}"
 
     work_dir="$(resolve_work_dir)" || return 1
+
+    if [[ "$use_docker" != "0" && "$use_docker" != "false" ]] && compose_available; then
+        require_command docker || return 1
+        echo "Stopping Docker Compose services in: $work_dir"
+        run_docker_compose down || {
+            echo "ERROR: docker compose down failed" >&2
+            return 1
+        }
+    fi
+
+    caddy_log="${CADDY_LOG_FILE:-$work_dir/caddy-data/access.log}"
+    if [[ -f "$caddy_log" ]]; then
+        caddy_log_archive="${CADDY_LOG_ARCHIVE:-}"
+        if [[ -z "$caddy_log_archive" ]]; then
+            caddy_log_archive="$(resolve_artifact_path "caddy/access_${suffix_name}.log")"
+        fi
+        if [[ -e "$caddy_log_archive" ]]; then
+            echo "ERROR: Caddy log archive already exists: $caddy_log_archive" >&2
+            return 1
+        fi
+
+        cp -a -- "$caddy_log" "$caddy_log_archive" || {
+            echo "ERROR: Failed to archive Caddy access log." >&2
+            return 1
+        }
+        : > "$caddy_log"
+        echo "Archived and cleared Caddy access log: $caddy_log_archive"
+    else
+        echo "No Caddy access log found; skipping Caddy log archive."
+    fi
 
     if [[ "${SERVICE_CHOICE}" == "1" || "${SERVICE_CHOICE}" == "2" ]]; then
         require_command bw || return 1
@@ -253,15 +284,6 @@ cleanup() {
         echo "Restored Bitwarden CLI baseline."
     else
         echo "No Bitwarden CLI baseline configured; skipping CLI state restore."
-    fi
-
-    if [[ "$use_docker" != "0" && "$use_docker" != "false" ]] && compose_available; then
-        require_command docker || return 1
-        echo "Stopping Docker Compose services in: $work_dir"
-        run_docker_compose down || {
-            echo "ERROR: docker compose down failed" >&2
-            return 1
-        }
     fi
 
     echo "Cleanup complete."
