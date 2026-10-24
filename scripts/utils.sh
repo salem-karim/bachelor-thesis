@@ -172,7 +172,7 @@ dump_process() {
     echo "Host PID: $host_pid"
     echo "Dumping process memory to: $output_prefix.$host_pid"
 
-    sudo gcore -o "$output_prefix" "$host_pid"
+    sudo gcore -a -o "$output_prefix" "$host_pid"
 }
 
 cleanup() {
