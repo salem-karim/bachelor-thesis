@@ -10,7 +10,7 @@ prefix="$(date -u '+%Y%m%dT%H%M%SZ')_S5_core_"
 
 initialize_scenario
 
-target_name="Test Login"
+target_name="EDITNAME_8d4de3c93a70_S0"
 
 item_id=$(
   bw list items |

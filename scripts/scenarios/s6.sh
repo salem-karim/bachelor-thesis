@@ -9,7 +9,7 @@ prefix="$(date -u '+%Y%m%dT%H%M%SZ')_S6_core_"
 
 initialize_scenario
 
-target_name="Test Login"
+target_name="DELNAME_c9ccd5b49beb_S0"
 
 item_id=$(
   bw list items |
