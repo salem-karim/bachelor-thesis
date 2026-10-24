@@ -25,7 +25,7 @@ old_password=$(generate_marker "S0" "OLDPW" "18")
 new_password=$(generate_marker "S0" "NEWPW" "18")
 
 # Hard code name for the scenario script to find item id
-edit_name=""EDITNAME_8d4de3c93a70_S0
+edit_name="EDITNAME_8d4de3c93a70_S0"
 edit_username=$(generate_marker "S0" "EDITUSR" "12")
 edit_password=$(generate_marker "S0" "EDITPW" "18")
 
