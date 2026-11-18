@@ -13,14 +13,12 @@ choice="$(prompt_service_choice 2 1 2)"
 
 case "$choice" in
     1)
-        # TODO: Validate and tune this branch for self-hosted Bitwarden VM setup.
-        SERVER_URL="${BW_SERVER_URL:-}"
-        if [[ -z "$SERVER_URL" ]]; then
-            echo "ERROR: Set BW_SERVER_URL for self-hosted Bitwarden VM (example: https://bitwarden.lab)." >&2
-            exit 1
-        fi
-        WORK_DIR="$HOME/bitwarden"
+        SERVER_URL="https://bitwarden.lab"
+        WORK_DIR="/opt/bitwarden"
+        CERT_FILE="$WORK_DIR/bwdata/ssl/self/bitwarden.lab/certificate.crt"
         echo "Configuring Bitwarden..."
+
+        echo '127.0.0.1 bitwarden.lab' | sudo tee -a /etc/hosts >/dev/null
         ;;
     2)
         SERVER_URL="https://vaultwarden.lab"
@@ -39,7 +37,7 @@ esac
 mkdir -p "$WORK_DIR"
 
 sudo apt update -qq
-sudo apt install -y unzip jq curl
+sudo apt install -y unzip
 
 wget -e background=off \
     --output-document=/tmp/bw.zip \

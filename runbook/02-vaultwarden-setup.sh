@@ -15,10 +15,6 @@ mkdir -p "$WORK_DIR"
 cp "$REPO_ROOT/lab/vaultwarden/compose.yml" "$WORK_DIR/compose.yml"
 cp "$REPO_ROOT/lab/vaultwarden/Caddyfile" "$WORK_DIR/Caddyfile"
 
-# Enable binding to Ports lower than 1024 (eg. 80 or 443)
-sudo setcap cap_net_bind_service=ep /usr/bin/rootlesskit
-systemctl --user restart docker
-
 cd "$WORK_DIR" || exit 1
 docker compose down --remove-orphans
 docker compose up -d
@@ -32,12 +28,17 @@ scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/caddy-root.crt"
 echo "export COMPOSE_FILE=\"$WORK_DIR/compose.yml\"" >> ~/.bashrc
 echo "export SERVICE_CHOICE=2" >> ~/.bashrc
 
-# Then update your trusted certificates and add a DNS Record with the VMs IP
-# This is the example on a Ubuntu Host, find the VMs IP using `ip a`
-# echo '192.168.XXX.XXX vaultwarden.lab' | sudo tee -a /etc/hosts
-#
-# # Add the Caddy Certificate to the Hosts trusted ones
-# sudo cp /tmp/caddy-root.crt /usr/local/share/ca-certificates/caddy-root.crt
-# sudo update-ca-certificates
+echo ""
+echo "Manual configuration required:"
+echo ""
+echo "1. Add a DNS entry on your Ubuntu host."
+echo "   Find your VM's IP address using: ip a"
+echo "   Run (replace the IP with your VM's IP):"
+echo "   echo '192.168.XXX.XXX vaultwarden.lab' | sudo tee -a /etc/hosts"
+echo ""
+echo "2. Add the Vaultwarden certificate to Ubuntu's trusted certificates:"
+echo "   sudo cp /tmp/vaultwarden-certificate.crt /usr/local/share/ca-certificates/vaultwarden-certificate.crt"
+echo "   sudo update-ca-certificates"
+echo ""
 
 echo "Now create an account manually, after getting the Caddy Certificates from the VM"

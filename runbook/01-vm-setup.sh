@@ -35,9 +35,15 @@ docker --version
 sudo apt install -y uidmap
 if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then
     dockerd-rootless-setuptool.sh install
+    # Enable binding to Ports lower than 1024 (eg. 80 or 443)
+    sudo setcap cap_net_bind_service=ep /usr/bin/rootlesskit
+    systemctl --user restart docker
 else
     echo "WARN: dockerd-rootless-setuptool.sh not found; rootless Docker setup was skipped." >&2
 fi
 
-# install gdb
-sudo apt install -y gdb
+
+
+# install gdb, jq and curl
+sudo apt install -y gdb jq curl
+
