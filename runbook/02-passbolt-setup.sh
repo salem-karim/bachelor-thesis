@@ -76,14 +76,14 @@ sudo chmod 400 certs/key.pem
 chmod 644 certs/cert.pem
 
 # Restart so nginx can load the certificate
-docker compose -f "$COMPOSE_FILE" restart passbolt
+docker compose restart passbolt
 
 echo "Waiting for nginx..."
 
 NGINX_READY=false
 
 for _ in {1..30}; do
-    if docker compose -f "$COMPOSE_FILE" exec -T passbolt \
+    if docker compose exec -T passbolt \
         supervisorctl status nginx 2>/dev/null |
         grep -q RUNNING; then
         NGINX_READY=true
@@ -95,7 +95,7 @@ done
 
 if [[ "$NGINX_READY" != true ]]; then
     echo "Nginx failed to start. Check docker compose logs." >&2
-    docker compose -f "$COMPOSE_FILE" logs --tail=50 passbolt
+    docker compose logs --tail=50 passbolt
     exit 1
 fi
 
