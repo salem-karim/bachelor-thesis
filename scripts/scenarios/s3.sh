@@ -22,7 +22,7 @@ else
     )
     export TEST_SECRET="passbolt://$item_id"
 
-    passbolt exec -- true
+    passbolt exec -- sh -c 'echo "$TEST_SECRET"'
 fi
 
 dump_process "" "$prefix"
