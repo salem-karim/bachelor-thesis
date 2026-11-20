@@ -57,11 +57,9 @@ service_preflight() {
             ;;
         2)
             require_command bw jq docker || return 1
-            require_command docker || return 1
             ;;
         3)
             require_command passbolt jq docker || return 1
-            require_command docker || return 1
             ;;
         *)
             echo "ERROR: Unsupported service choice: $SERVICE_CHOICE" >&2
@@ -91,28 +89,17 @@ docker_startup() {
         return
     fi
 
-    local use_docker="${USE_DOCKER_COMPOSE:-auto}"
     local work_dir compose_file
-
-    if [[ "$use_docker" == "0" || "$use_docker" == "false" ]]; then
-        echo "Skipping Docker startup (USE_DOCKER_COMPOSE=$use_docker)."
-        return 0
-    fi
-
     require_command docker || return 1
 
     work_dir="$(resolve_work_dir)" || return 1
-    compose_file="$(resolve_compose_file "$work_dir" || true)"
 
     if ! compose_available; then
-        if [[ "$use_docker" == "1" || "$use_docker" == "true" ]]; then
-            echo "ERROR: Docker Compose requested but no compose file was found in WORK_DIR: $work_dir" >&2
-            return 1
-        fi
-
-        echo "Skipping Docker startup (no compose file found in WORK_DIR)."
-        return 0
+        echo "ERROR: No Docker Compose file found in WORK_DIR: $work_dir" >&2
+        return 1
     fi
+
+    compose_file="$(resolve_compose_file "$work_dir")" || return 1
 
     echo "Starting Docker Compose services from WORK_DIR: $work_dir"
     echo "Using compose file: $compose_file"
@@ -142,7 +129,7 @@ initialize_scenario() {
     if [[ "${SERVICE_CHOICE}" == "3" ]]; then
         docker_startup || return 1
         require_command passbolt || return 1
-        echo "Passbolt uses the configured CLI authentication; no login/logout is required."
+        passbolt verify
         return 0
     fi
 
@@ -166,108 +153,55 @@ initialize_scenario() {
 }
 
 dump_process() {
-    local container="${1:-${CONTAINER_NAME:-}}"
-    local output_prefix="${2:-core}"
+    local container_list="${CONTAINER_NAME:-}"
+    local output_prefix="${1:-core}"
     local host_pid
-    local use_docker="${USE_DOCKER_COMPOSE:-auto}"
-
-    if [[ "$use_docker" == "0" || "$use_docker" == "false" ]]; then
-        echo "Skipping process dump (USE_DOCKER_COMPOSE=$use_docker)."
-        return 0
-    fi
+    local container
+    local -a containers=()
 
     require_command docker sudo || return 1
 
-    if [[ -z "$container" ]]; then
-        if compose_available; then
-            container="$(run_docker_compose ps -q | head -n1)"
-        fi
+    if [[ -z "$container_list" ]]; then
+        echo "ERROR: CONTAINER_NAME is not set." >&2
+        return 1
     fi
 
-    if [[ -z "$container" ]]; then
-        if [[ "$use_docker" == "1" || "$use_docker" == "true" ]]; then
-            echo "ERROR: No container target provided for process dump." >&2
-            return 1
-        fi
-
-        echo "Skipping process dump (no running compose container detected)."
-        return 0
-    fi
+    # CONTAINER_NAME accepts space-separated container names.
+    read -r -a containers <<< "$container_list"
 
     ensure_sudo_session || return 1
     ensure_artifact_dir || return 1
 
     output_prefix="$(resolve_artifact_path "$output_prefix")"
 
-    host_pid="$(docker inspect --type=container \
-        --format '{{.State.Pid}}' "$container")" || {
-        echo "ERROR: Could not inspect container: $container" >&2
-        return 1
-    }
+    for container in "${containers[@]}"; do
+        host_pid="$(docker inspect --type=container \
+            --format '{{.State.Pid}}' "$container")" || {
+            echo "ERROR: Could not inspect container: $container" >&2
+            return 1
+        }
 
-    if [[ ! "$host_pid" =~ ^[1-9][0-9]*$ ]]; then
-        echo "ERROR: Container is not running: $container" >&2
-        return 1
-    fi
-
-    echo "Container: $container"
-    echo "Host PID: $host_pid"
-    echo "Dumping process memory to: $output_prefix.$host_pid"
-
-    sudo gcore -a -o "$output_prefix" "$host_pid"
-}
-
-passbolt_volume_names() {
-    docker volume ls --format '{{.Name}}' |
-        grep -E '(_database_volume|_gpg_volume|_jwt_volume)$'
-}
-
-backup_passbolt_volumes() {
-    local suffix_name="${1:-$(date -u '+%Y%m%dT%H%M%SZ')}"
-    local volume name mountpoint archive_dir
-
-    archive_dir="${DATA_DIR}_${suffix_name}"
-    mkdir -p -- "$archive_dir"
-
-    while read -r volume; do
-        [[ -n "$volume" ]] || continue
-        name="${volume##*_}"
-        mountpoint="$(docker volume inspect --format '{{.Mountpoint}}' "$volume")" || return 1
-        mkdir -p -- "$archive_dir/$name"
-        sudo cp -a -- "$mountpoint/." "$archive_dir/$name/" || return 1
-    done < <(passbolt_volume_names)
-
-    echo "Archived Passbolt volumes: $archive_dir"
-}
-
-restore_passbolt_volumes() {
-    local volume name mountpoint baseline_dir="${DATA_DIR}.bak"
-
-    if [[ ! -d "$baseline_dir" ]]; then
-        echo "ERROR: Missing Passbolt volume baseline: $baseline_dir" >&2
-        return 1
-    fi
-
-    while read -r volume; do
-        [[ -n "$volume" ]] || continue
-        name="${volume##*_}"
-        if [[ ! -d "$baseline_dir/$name" ]]; then
-            continue
+        if [[ ! "$host_pid" =~ ^[1-9][0-9]*$ ]]; then
+            echo "ERROR: Container is not running: $container" >&2
+            return 1
         fi
-        mountpoint="$(docker volume inspect --format '{{.Mountpoint}}' "$volume")" || return 1
-        sudo cp -a -- "$baseline_dir/$name/." "$mountpoint/" || return 1
-    done < <(passbolt_volume_names)
 
-    echo "Restored Passbolt volume baseline."
+        echo
+        echo "Container: $container"
+        echo "Host PID: $host_pid"
+        echo "Dumping process memory to: $output_prefix.$container"
+
+        sudo gcore -a -o "$output_prefix.$container" "$host_pid" || {
+            echo "ERROR: Failed to dump container: $container" >&2
+            return 1
+        }
+    done
 }
 
 cleanup() {
     local suffix_name="${1:-$(date -u '+%Y%m%dT%H%M%SZ')}"
-    local work_dir data_dir data_baseline data_archive
+    local work_dir bw_data
     local caddy_log caddy_log_archive
-    local bw_config_dir bw_data bw_baseline bw_archive
-    local use_docker="${USE_DOCKER_COMPOSE:-auto}"
-    local should_reset_bw="${RESET_BW_STATE:-auto}"
 
     work_dir="$(resolve_work_dir)" || return 1
 
@@ -277,8 +211,14 @@ cleanup() {
         sudo "$BITWARDEN_SCRIPT" stop || return 1
     fi
 
-    if [[ "$use_docker" != "0" && "$use_docker" != "false" ]] && compose_available; then
+    if [[ "${SERVICE_CHOICE}" != "1" ]]; then
         require_command docker || return 1
+
+        if ! compose_available; then
+            echo "ERROR: No Docker Compose file found in WORK_DIR: $work_dir" >&2
+            return 1
+        fi
+
         echo "Stopping Docker Compose services in: $work_dir"
         run_docker_compose down || {
             echo "ERROR: docker compose down failed" >&2
@@ -286,103 +226,91 @@ cleanup() {
         }
     fi
 
-    caddy_log="${CADDY_LOG_FILE:-$work_dir/caddy-data/access.log}"
-    if [[ -f "$caddy_log" ]]; then
-        caddy_log_archive="${CADDY_LOG_ARCHIVE:-}"
-        if [[ -z "$caddy_log_archive" ]]; then
-            caddy_log_archive="$(resolve_artifact_path "caddy/access_${suffix_name}.log")"
-        fi
-        if [[ -e "$caddy_log_archive" ]]; then
-            echo "ERROR: Caddy log archive already exists: $caddy_log_archive" >&2
-            return 1
-        fi
 
-        cp -a -- "$caddy_log" "$caddy_log_archive" || {
-            echo "ERROR: Failed to archive Caddy access log." >&2
-            return 1
-        }
-        : > "$caddy_log"
-        echo "Archived and cleared Caddy access log: $caddy_log_archive"
-    else
-        echo "No Caddy access log found; skipping Caddy log archive."
+    if [[ "${SERVICE_CHOICE}" == "2" ]]; then
+        caddy_log="${CADDY_LOG_FILE:-$work_dir/caddy-data/access.log}"
+        if [[ -f "$caddy_log" ]]; then
+            caddy_log_archive="${CADDY_LOG_ARCHIVE:-}"
+            if [[ -z "$caddy_log_archive" ]]; then
+                caddy_log_archive="$(resolve_artifact_path "caddy/access_${suffix_name}.log")"
+            fi
+            if [[ -e "$caddy_log_archive" ]]; then
+                echo "ERROR: Caddy log archive already exists: $caddy_log_archive" >&2
+                return 1
+            fi
+
+            cp -a -- "$caddy_log" "$caddy_log_archive" || {
+                echo "ERROR: Failed to archive Caddy access log." >&2
+                return 1
+            }
+            : > "$caddy_log"
+            echo "Archived and cleared Caddy access log: $caddy_log_archive"
+        else
+            echo "No Caddy access log found; skipping Caddy log archive."
+        fi
     fi
 
     if [[ "${SERVICE_CHOICE}" == "3" ]]; then
-        backup_passbolt_volumes "$suffix_name" || return 1
-        restore_passbolt_volumes || return 1
-        data_dir=""
+        if [[ -n "$DATA_DIR" ]]; then
+            local docker_volumes_path="$HOME/.local/share/docker/volumes"
+
+            [[ -d "$DATA_DIR.bak" ]] || {
+                echo "ERROR: Missing baseline: $DATA_DIR.bak" >&2
+                return 1
+            }
+
+            [[ ! -e "${DATA_DIR}_${suffix_name}" ]] || {
+                echo "ERROR: Archive already exists." >&2
+                return 1
+            }
+
+            mv "$docker_volumes_path/passbolt_database_volume" \
+               "${DATA_DIR}_${suffix_name}/passbolt_database_volume" || return 1
+
+            mv "$docker_volumes_path/passbolt_gpg_volume" \
+               "${DATA_DIR}_${suffix_name}/passbolt_gpg_volume" || return 1
+
+            mv "$docker_volumes_path/passbolt_jwt_volume" \
+               "${DATA_DIR}_${suffix_name}/passbolt_jwt_volume" || return 1
+
+            cp -a "$DATA_DIR.bak/." "$docker_volumes_path/" || return 1
+
+            echo "Restored Passbolt volumes."
+        fi
+
+
+        # TODO: add some logic for the CLI
     fi
 
     if [[ "${SERVICE_CHOICE}" == "1" || "${SERVICE_CHOICE}" == "2" ]]; then
         require_command bw || return 1
         bw logout >/dev/null 2>&1 || true
         unset BW_SESSION
-        data_dir="${DATA_DIR:-}"
-    else
-        data_dir="${data_dir:-}"
-    fi
-
-    if [[ -n "$data_dir" ]]; then
-        data_baseline="${DATA_BASELINE:-$data_dir.bak}"
-        data_archive="${DATA_ARCHIVE:-${data_dir}_${suffix_name}}"
-    fi
-
-    bw_config_dir="${BW_CONFIG_DIR:-$HOME/.config/Bitwarden CLI}"
-    bw_data="${BW_DATA_FILE:-$bw_config_dir/data.json}"
-    bw_baseline="${BW_BASELINE_FILE:-$bw_data.bak}"
-    bw_archive="${BW_ARCHIVE_FILE:-${bw_data}_${suffix_name}}"
-
-    if [[ -n "$data_dir" ]]; then
-        if [[ ! -d "$data_baseline" ]]; then
-            echo "ERROR: Missing baseline directory: $data_baseline" >&2
-            return 1
-        fi
-
-        if [[ -e "$data_archive" ]]; then
-            echo "ERROR: Data archive already exists: $data_archive" >&2
-            return 1
-        fi
-
-        if [[ -e "$data_dir" ]]; then
-            mv -- "$data_dir" "$data_archive" || return 1
-            echo "Archived service data: $data_archive"
-        fi
-
-        cp -a -- "$data_baseline" "$data_dir" || {
-            echo "ERROR: Failed to restore baseline directory: $data_baseline" >&2
-            return 1
-        }
-
-        echo "Restored service baseline data."
-    else
-        echo "No DATA_DIR detected; skipping service data restore."
-    fi
-
-    if [[ "$should_reset_bw" == "1" || "$should_reset_bw" == "true" ]] ||
-       [[ "$should_reset_bw" == "auto" && -f "$bw_baseline" ]]; then
-        if [[ -e "$bw_archive" ]]; then
-            echo "ERROR: Bitwarden CLI archive already exists: $bw_archive" >&2
-            return 1
-        fi
-
-        echo "Archiving Bitwarden CLI state..."
-
-        if [[ -f "$bw_data" ]]; then
-            cp -a -- "$bw_data" "$bw_archive" || {
-                echo "ERROR: Failed to archive Bitwarden CLI state." >&2
+        if [[ -n "$DATA_DIR" ]]; then
+            [[ -d "$DATA_DIR.bak" ]] || {
+                echo "ERROR: Missing baseline: $DATA_DIR.bak" >&2
                 return 1
             }
-            echo "Archived Bitwarden CLI state: $bw_archive"
+
+            [[ ! -e "${DATA_DIR}_${suffix_name}" ]] || {
+                echo "ERROR: Archive already exists." >&2
+                return 1
+            }
+
+            mv "$DATA_DIR" "${DATA_DIR}_${suffix_name}" || return 1
+            cp -a "$DATA_DIR.bak" "$DATA_DIR" || return 1
+
+            echo "Restored service data."
         fi
 
-        cp -a -- "$bw_baseline" "$bw_data" || {
-            echo "ERROR: Failed to restore Bitwarden CLI baseline." >&2
-            return 1
-        }
+        bw_data="$HOME/.config/Bitwarden CLI/data.json"
 
-        echo "Restored Bitwarden CLI baseline."
-    else
-        echo "No Bitwarden CLI baseline configured; skipping CLI state restore."
+        if [[ -f "$bw_data.bak" ]]; then
+            mv "$bw_data" "${bw_data}_${suffix_name}" || return 1
+            cp -a "$bw_data.bak" "$bw_data" || return 1
+
+            echo "Restored Bitwarden CLI state."
+        fi
     fi
 
     echo "Cleanup complete."

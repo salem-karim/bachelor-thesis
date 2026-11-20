@@ -13,7 +13,6 @@ case "$choice" in
         WORK_DIR="/opt/bitwarden"
         DATA_DIR="$WORK_DIR/bwdata"
         bitwarden_variant=true
-        BITWARDEN_SCRIPT="$WORK_DIR/bitwarden.sh"
         echo "Configuring Bitwarden..."
         ;;
     2)
@@ -30,7 +29,6 @@ case "$choice" in
         DATA_DIR="$HOME/.local/share/docker/volumes/passbolt_database_volume"
         BACKUP_DIR="$WORK_DIR/passbolt_database_volume.bak"
         bitwarden_variant=false
-        COMPOSE_FILE="$WORK_DIR/compose.yaml"
         ;;
     *)
         echo "Invalid choice. Exiting." >&2

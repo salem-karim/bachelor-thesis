@@ -25,7 +25,7 @@ prompt_service_choice() {
         for valid_choice in "${allowed_choices[@]}"; do
             printf '%s) %s\n' "$valid_choice" "$(service_choice_label "$valid_choice")" >&2
         done
-        read -rp "Enter your choice [$default_choice]: " choice || return 1
+        read -rp "Enter your choice (Default: $default_choice): " choice || return 1
 
         choice="${choice:-$default_choice}"
         for valid_choice in "${allowed_choices[@]}"; do
@@ -45,7 +45,7 @@ apply_service_profile() {
             WORK_DIR="${WORK_DIR:-/opt/bitwarden}"
             BITWARDEN_SCRIPT="${BITWARDEN_SCRIPT:-$WORK_DIR/bitwarden.sh}"
             USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-0}"
-            CONTAINER_NAME="${CONTAINER_NAME:-bitwarden}"
+            CONTAINER_NAME="${CONTAINER_NAME:-bitwarden-mssql bitwarden-api bitwarden-identity}"
             RESET_BW_STATE="${RESET_BW_STATE:-auto}"
             DATA_DIR="${DATA_DIR:-$WORK_DIR/bwdata}"
             ;;
@@ -59,7 +59,7 @@ apply_service_profile() {
         3)
             WORK_DIR="${WORK_DIR:-$HOME/passbolt}"
             USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-true}"
-            CONTAINER_NAME="${CONTAINER_NAME:-passbolt}"
+            CONTAINER_NAME="${CONTAINER_NAME:-passbolt-passbolt-1 passbolt-db-1}"
             RESET_BW_STATE="${RESET_BW_STATE:-false}"
             COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yaml}"
             DATA_DIR="${DATA_DIR:-$WORK_DIR/passbolt-data}"

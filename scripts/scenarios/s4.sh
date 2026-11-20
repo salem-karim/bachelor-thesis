@@ -16,15 +16,20 @@ password=$(generate_marker "S4" "PW" "18")
 
 template_dir="$REPO_ROOT/lab/warden-json-templates"
 
-jq --arg name "$name" \
-   --arg username "$username" \
-   --arg password "$password" \
-   '.name = $name
-    | .type = 1
-    | .login = (input | .username = $username | .password = $password)' \
-   "$template_dir/item.json" "$template_dir/login.json" |
-  bw encode |
-  bw create item
+if [[ "${SERVICE_CHOICE}" != "3" ]]; then
+    jq --arg name "$name" \
+       --arg username "$username" \
+       --arg password "$password" \
+       '.name = $name
+        | .type = 1
+        | .login = (input | .username = $username | .password = $password)' \
+       "$template_dir/item.json" "$template_dir/login.json" |
+      bw encode |
+      bw create item
+else
+    passbolt create resource \
+        -n "$name" -u "$username" -p "$password"
+fi
 
 dump_process "" "$prefix"
 cleanup
