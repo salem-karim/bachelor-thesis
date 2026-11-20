@@ -21,5 +21,4 @@ echo ""
 read -r -p "Press ENTER once you have completed the registration to continue..."
 
 passbolt configure --serverAddress https://passbolt.lab \
-    --userPrivateKeyFile "$HOME/passbolt/privatekey.asc" \
-    --userPassword "This24PassMasterW0rd"
+    --userPrivateKeyFile "$HOME/passbolt/privatekey.asc"

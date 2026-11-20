@@ -65,4 +65,6 @@ echo "   sudo cp /tmp/bitwarden-certificate.crt /usr/local/share/ca-certificates
 echo "   sudo update-ca-certificates"
 echo ""
 
+"$WORK_DIR"/bitwarden.sh start
+
 echo "Now create an account manually, after getting the Certificates from the VM"

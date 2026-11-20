@@ -251,35 +251,81 @@ cleanup() {
     fi
 
     if [[ "${SERVICE_CHOICE}" == "3" ]]; then
-        if [[ -n "$DATA_DIR" ]]; then
-            local docker_volumes_path="$HOME/.local/share/docker/volumes"
 
-            [[ -d "$DATA_DIR.bak" ]] || {
-                echo "ERROR: Missing baseline: $DATA_DIR.bak" >&2
+        local archive_dir="$work_dir/passbolt-data/passbolt-volumes_${suffix_name}"
+        local cli_config_file="$HOME/.config/go-passbolt-cli/go-passbolt-cli.toml"
+
+        # Verify baseline exists
+        [[ -d "$BACKUP_DIR" ]] || {
+            echo "ERROR: Missing baseline: $BACKUP_DIR" >&2
+            return 1
+        }
+
+        # Verify all current and baseline volumes exist
+        for volume in \
+            passbolt_database_volume \
+            passbolt_gpg_volume \
+            passbolt_jwt_volume
+        do
+            [[ -d "$DATA_DIR/$volume" ]] || {
+                echo "ERROR: Missing current volume: $DATA_DIR/$volume" >&2
                 return 1
             }
 
-            [[ ! -e "${DATA_DIR}_${suffix_name}" ]] || {
-                echo "ERROR: Archive already exists." >&2
+            [[ -d "$BACKUP_DIR/$volume" ]] || {
+                echo "ERROR: Missing baseline volume: $BACKUP_DIR/$volume" >&2
+                return 1
+            }
+        done
+
+        # Ensure archive doesn't already exist
+        [[ ! -e "$archive_dir" ]] || {
+            echo "ERROR: Archive already exists: $archive_dir" >&2
+            return 1
+        }
+
+        mkdir -p "$archive_dir" || return 1
+
+        # Archive current Docker volumes
+        for volume in \
+            passbolt_database_volume \
+            passbolt_gpg_volume \
+            passbolt_jwt_volume
+        do
+            mv -- "$DATA_DIR/$volume" "$archive_dir/" || return 1
+        done
+
+        # Restore clean baseline
+        for volume in \
+            passbolt_database_volume \
+            passbolt_gpg_volume \
+            passbolt_jwt_volume
+        do
+            cp -a -- "$BACKUP_DIR/$volume" "$DATA_DIR/" || return 1
+        done
+
+        echo "Restored clean Passbolt volumes."
+        echo "Previous volumes archived: $archive_dir"
+
+        # TODO: figure out restoring unauthenticated state?
+        # Archive current CLI configuration and restore baseline
+        if [[ -f "$cli_config_file.bak" ]]; then
+
+            [[ -f "$cli_config_file" ]] || {
+                echo "ERROR: Current Passbolt CLI config missing." >&2
                 return 1
             }
 
-            mv "$docker_volumes_path/passbolt_database_volume" \
-               "${DATA_DIR}_${suffix_name}/passbolt_database_volume" || return 1
+            [[ ! -e "${cli_config_file}_${suffix_name}" ]] || {
+                echo "ERROR: CLI config archive already exists." >&2
+                return 1
+            }
 
-            mv "$docker_volumes_path/passbolt_gpg_volume" \
-               "${DATA_DIR}_${suffix_name}/passbolt_gpg_volume" || return 1
+            mv -- "$cli_config_file" "${cli_config_file}_${suffix_name}" || return 1
+            cp -a -- "$cli_config_file.bak" "$cli_config_file" || return 1
 
-            mv "$docker_volumes_path/passbolt_jwt_volume" \
-               "${DATA_DIR}_${suffix_name}/passbolt_jwt_volume" || return 1
-
-            cp -a "$DATA_DIR.bak/." "$docker_volumes_path/" || return 1
-
-            echo "Restored Passbolt volumes."
+            echo "Restored clean Passbolt CLI configuration."
         fi
-
-
-        # TODO: add some logic for the CLI
     fi
 
     if [[ "${SERVICE_CHOICE}" == "1" || "${SERVICE_CHOICE}" == "2" ]]; then

@@ -27,7 +27,7 @@ docker compose up -d
 echo "Waiting for Passbolt container..."
 
 for _ in {1..30}; do
-    CONTAINER_ID=$(docker compose -f "$COMPOSE_FILE" ps -q passbolt)
+    CONTAINER_ID=$(docker compose ps -q passbolt)
 
     if [[ -n "$CONTAINER_ID" ]]; then
         PID=$(docker inspect -f '{{.State.Pid}}' "$CONTAINER_ID")
@@ -101,8 +101,7 @@ fi
 
 echo "Passbolt is running successfully."
 
-docker compose -f "$WORK_DIR/compose.yaml" \
-exec passbolt su -m -c "/usr/share/php/passbolt/bin/cake \
+docker compose exec passbolt su -m -c "/usr/share/php/passbolt/bin/cake \
   passbolt register_user \
     -u testing@example.com \
     -f Name \
@@ -121,6 +120,9 @@ scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/passbolt-certificate.crt"
 # Set environment variables to run the scripts later
 echo "export COMPOSE_FILE=\"$WORK_DIR/compose.yaml\"" >> ~/.bashrc
 echo "export SERVICE_CHOICE=3" >> ~/.bashrc
+
+# Load the set Environment Variables
+source "$HOME/.bashrc"
 
 echo ""
 echo "Manual configuration required:"

@@ -52,19 +52,6 @@ if [[ -n "${CERT_FILE:-}" ]]; then
     export NODE_EXTRA_CA_CERTS="$CERT_FILE"
 fi
 
-export PATH="$WORK_DIR:$PATH"
+source "$HOME/.bashrc"
 
 bw config server "$SERVER_URL"
-
-session_key="$(bw login --raw)" || exit 1
-export BW_SESSION="$session_key"
-
-bw get template item \
-  | jq --arg username 'TestName' \
-       --arg password 'Te5tPa_55w0rd' \
-       '.name = "Test Login"
-        | .login = {"username": $username, "password": $password}' \
-  | bw encode \
-  | bw create item
-
-bw logout

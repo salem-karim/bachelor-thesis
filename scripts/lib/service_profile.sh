@@ -54,6 +54,7 @@ apply_service_profile() {
             USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-true}"
             CONTAINER_NAME="${CONTAINER_NAME:-vaultwarden}"
             RESET_BW_STATE="${RESET_BW_STATE:-auto}"
+            COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yaml}"
             DATA_DIR="${DATA_DIR:-$WORK_DIR/vw-data}"
             ;;
         3)
@@ -62,7 +63,8 @@ apply_service_profile() {
             CONTAINER_NAME="${CONTAINER_NAME:-passbolt-passbolt-1 passbolt-db-1}"
             RESET_BW_STATE="${RESET_BW_STATE:-false}"
             COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yaml}"
-            DATA_DIR="${DATA_DIR:-$WORK_DIR/passbolt-data}"
+            DATA_DIR="${DATA_DIR:-$HOME/.local/share/docker/volumes}"
+            BACKUP_DIR="${BACKUP_DIR:-$WORK_DIR/passbolt-data/passbolt-volumes.bak}"
             ;;
         *)
             echo "ERROR: Unsupported service choice: ${SERVICE_CHOICE}" >&2
@@ -71,7 +73,7 @@ apply_service_profile() {
     esac
 
     export WORK_DIR BITWARDEN_SCRIPT USE_DOCKER_COMPOSE CONTAINER_NAME RESET_BW_STATE
-    export DATA_DIR
+    export DATA_DIR BACKUP_DIR COMPOSE_FILE
 }
 
 initialize_service_context() {
