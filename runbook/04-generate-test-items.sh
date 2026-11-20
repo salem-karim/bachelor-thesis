@@ -125,6 +125,8 @@ generate_bitwarden_items() {
 generate_bw_items() {
     local with_attachment="$1"
 
+    bw login
+
     item1_json="$(create_bw_login "$name" "$username" "$password")"
     item1_id=$(jq -er '.id' <<<"$item1_json")
 

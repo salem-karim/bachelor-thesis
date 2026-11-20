@@ -22,6 +22,7 @@ case "$SERVICE_CHOICE" in
         WORK_DIR="$HOME/vaultwarden"
         DATA_DIR="$WORK_DIR/vw-data"
         bitwarden_variant=true
+        export COMPOSE_FILE="$WORK_DIR/compose.yml"
         echo "Configuring Vaultwarden..."
 
         echo '127.0.0.1 vaultwarden.lab' | sudo tee -a /etc/hosts >/dev/null
@@ -31,6 +32,7 @@ case "$SERVICE_CHOICE" in
         DATA_DIR="$HOME/.local/share/docker/volumes"
         BACKUP_DIR="$WORK_DIR/passbolt-data/passbolt-volumes.bak"
         bitwarden_variant=false
+        export COMPOSE_FILE="$WORK_DIR/compose.yml"
         ;;
     *)
         echo "Invalid choice. Exiting." >&2

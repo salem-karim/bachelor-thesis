@@ -54,7 +54,7 @@ apply_service_profile() {
             USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-true}"
             CONTAINER_NAME="${CONTAINER_NAME:-vaultwarden}"
             RESET_BW_STATE="${RESET_BW_STATE:-auto}"
-            COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yaml}"
+            COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yml}"
             DATA_DIR="${DATA_DIR:-$WORK_DIR/vw-data}"
             ;;
         3)
@@ -62,7 +62,7 @@ apply_service_profile() {
             USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-true}"
             CONTAINER_NAME="${CONTAINER_NAME:-passbolt-passbolt-1 passbolt-db-1}"
             RESET_BW_STATE="${RESET_BW_STATE:-false}"
-            COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yaml}"
+            COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yml}"
             DATA_DIR="${DATA_DIR:-$HOME/.local/share/docker/volumes}"
             BACKUP_DIR="${BACKUP_DIR:-$WORK_DIR/passbolt-data/passbolt-volumes.bak}"
             ;;

@@ -8,18 +8,26 @@ if [[ -z "${HOST_USER:-}" || -z "${HOST_DOMAIN:-}" ]]; then
 fi
 
 WORK_DIR="/opt/bitwarden"
-sudo adduser bitwarden
-sudo passwd bitwarden
-sudo groupadd docker
+if ! id bitwarden >/dev/null 2>&1; then
+    sudo adduser --disabled-password --gecos "" bitwarden
+fi
+
+sudo usermod -aG sudo bitwarden
+
+if ! getent group docker >/dev/null 2>&1; then
+    sudo groupadd docker
+fi
 sudo usermod -aG docker bitwarden
 sudo mkdir -p "$WORK_DIR"
 sudo chmod -R 700 /opt/bitwarden
 sudo chown -R bitwarden:bitwarden /opt/bitwarden
 
-# Switch to the newly created bitwarden user
-sudo -iu bitwarden
-cd "$WORK_DIR" || exit 1
-curl -Lso bitwarden.sh "https://func.bitwarden.com/api/dl/?app=self-host&platform=linux" && chmod 700 bitwarden.sh
+sudo -u bitwarden -H bash -s <<'EOF'
+set -Eeuo pipefail
+cd /opt/bitwarden
+curl -Lso bitwarden.sh "https://func.bitwarden.com/api/dl/?app=self-host&platform=linux"
+chmod 700 bitwarden.sh
+EOF
 
 echo ""
 echo "Bitwarden installer will now start."
@@ -44,13 +52,21 @@ echo ""
 echo "   The generated certificate must be trusted on both the VM"
 echo "   and your host."
 echo ""
-"$WORK_DIR"/bitwarden.sh install
+sudo -u bitwarden -H bash -s <<'EOF'
+set -Eeuo pipefail
+cd /opt/bitwarden
+./bitwarden.sh install
+./bitwarden.sh start
+EOF
 
 CERT_FILE="$WORK_DIR/bwdata/ssl/self/bitwarden.lab/certificate.crt"
-scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/bitwarden-certificate.crt"
+sudo -u bitwarden cat "$CERT_FILE" | sudo tee /tmp/bitwarden-certificate.crt >/dev/null
+scp /tmp/bitwarden-certificate.crt "$HOST_USER@$HOST_DOMAIN:/tmp/bitwarden-certificate.crt"
 
 # Set environment variables to run the scripts later
-echo "export SERVICE_CHOICE=1" >> ~/.bashrc
+grep -qxF 'export SERVICE_CHOICE=1' ~/.bashrc ||
+    echo 'export SERVICE_CHOICE=1' >> ~/.bashrc
+export SERVICE_CHOICE=1
 
 echo ""
 echo "Manual configuration required:"
@@ -63,8 +79,5 @@ echo ""
 echo "2. Add the Bitwarden certificate to Ubuntu's trusted certificates:"
 echo "   sudo cp /tmp/bitwarden-certificate.crt /usr/local/share/ca-certificates/bitwarden-certificate.crt"
 echo "   sudo update-ca-certificates"
-echo ""
-
-"$WORK_DIR"/bitwarden.sh start
-
 echo "Now create an account manually, after getting the Certificates from the VM"
+echo "Also continue the next scripts as the bitwarden user"

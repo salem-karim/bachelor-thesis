@@ -22,7 +22,7 @@ docker compose up -d
 sleep 5
 
 CERT_FILE="$WORK_DIR/caddy-data/caddy/pki/authorities/local/root.crt"
-scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/caddy-root.crt"
+scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/vaultwarden-certificate.crt"
 
 # Set environment variables to run the scripts later
 echo "export COMPOSE_FILE=\"$WORK_DIR/compose.yml\"" >> ~/.bashrc

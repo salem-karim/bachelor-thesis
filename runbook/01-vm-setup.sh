@@ -45,5 +45,5 @@ fi
 
 
 # install gdb, jq and curl
-sudo apt install -y gdb jq curl
+sudo apt install -y gdb jq curl uuid-runtime
 

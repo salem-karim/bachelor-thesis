@@ -45,13 +45,29 @@ wget -e background=off \
 
 unzip -o /tmp/bw.zip -d "$WORK_DIR"
 
-echo "export PATH=\"$WORK_DIR:\$PATH\"" >> ~/.bashrc
+export PATH="$WORK_DIR:$PATH"
+grep -qxF "export PATH=\"$WORK_DIR:\$PATH\"" ~/.bashrc ||
+    echo "export PATH=\"$WORK_DIR:\$PATH\"" >> ~/.bashrc
 
 if [[ -n "${CERT_FILE:-}" ]]; then
-    echo "export NODE_EXTRA_CA_CERTS=\"$CERT_FILE\"" >> ~/.bashrc
     export NODE_EXTRA_CA_CERTS="$CERT_FILE"
+    grep -qxF "export NODE_EXTRA_CA_CERTS=\"$CERT_FILE\"" ~/.bashrc ||
+        echo "export NODE_EXTRA_CA_CERTS=\"$CERT_FILE\"" >> ~/.bashrc
 fi
 
-source "$HOME/.bashrc"
+export SERVICE_CHOICE="$choice"
+grep -qxF "export SERVICE_CHOICE=$choice" ~/.bashrc ||
+    echo "export SERVICE_CHOICE=$choice" >> ~/.bashrc
 
-bw config server "$SERVER_URL"
+if [[ "$choice" == "1" ]]; then
+    grep -qxF 'export COMPOSE_FILE=""' ~/.bashrc ||
+        echo 'export COMPOSE_FILE=""' >> ~/.bashrc
+    export COMPOSE_FILE=""
+else
+    COMPOSE_FILE="$WORK_DIR/compose.yml"
+    export COMPOSE_FILE
+    grep -qxF "export COMPOSE_FILE=\"$COMPOSE_FILE\"" ~/.bashrc ||
+        echo "export COMPOSE_FILE=\"$COMPOSE_FILE\"" >> ~/.bashrc
+fi
+
+"$WORK_DIR/bw" config server "$SERVER_URL"
