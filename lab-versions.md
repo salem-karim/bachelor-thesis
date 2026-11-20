@@ -11,5 +11,16 @@
 - Caddy 2.11.7
 - GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1
 - UnZip 6.00 of 20 April 2009, by Debian. Original by Info-ZIP.
+- GNU Wget 1.25.0
+- JQ 1.8.1
+- Curl 8.18.0
+- OpenSSL 3.5.5
 - Bitwarden CLI (bw) 2026.10.0
 - Python 3.14.4
+- MSSQL Server 2025 CU5
+- Bitwarden Containers 2026.10.1
+- Bitwarden NginX 1.31.8
+- Mariadb 10.11
+- Passbolt 5.18.0-1-ce-non-root
+- Passbolt NginX 1.26.3
+- Passbolt CLI 0.5.3
