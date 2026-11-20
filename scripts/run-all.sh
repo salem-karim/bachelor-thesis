@@ -5,6 +5,14 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/utils.sh"
 
+if [[ -z "${SERVICE_CHOICE:-}" ]]; then
+    SERVICE_CHOICE="$(prompt_service_choice 2 1 2 3)" || exit 1
+    export SERVICE_CHOICE
+fi
+
+initialize_service_context
+service_preflight || exit 1
+
 usage() {
     cat <<'EOF'
 Usage: run-all.sh [--repeat COUNT] [scenario ...]

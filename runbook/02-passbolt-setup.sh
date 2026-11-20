@@ -13,7 +13,7 @@ fi
 WORK_DIR="${WORK_DIR:-$HOME/passbolt}"
 mkdir -p "$WORK_DIR/certs"
 cd "$WORK_DIR" || exit 1
-cp "$REPO_ROOT/lab/passbolt/compose.yml" "$WORK_DIR/compose.yml"
+cp "$REPO_ROOT/lab/passbolt/compose.yaml" "$WORK_DIR/compose.yaml"
 openssl req -newkey rsa:4096 -x509 -sha256 -days 730 -noenc -batch \
     -subj "/CN=passbolt.lab" -addext "subjectAltName=DNS:passbolt.lab"\
     -out "$WORK_DIR/certs/cert.pem" -keyout "$WORK_DIR/certs/key.pem"
@@ -101,7 +101,7 @@ fi
 
 echo "Passbolt is running successfully."
 
-docker compose -f docker-compose-ce.yaml \
+docker compose -f "$WORK_DIR/compose.yaml" \
 exec passbolt su -m -c "/usr/share/php/passbolt/bin/cake \
   passbolt register_user \
     -u testing@example.com \
@@ -119,7 +119,7 @@ CERT_FILE="$WORK_DIR/certs/cert.pem"
 scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/passbolt-certificate.crt"
 
 # Set environment variables to run the scripts later
-echo "export COMPOSE_FILE=\"$WORK_DIR/compose.yml\"" >> ~/.bashrc
+echo "export COMPOSE_FILE=\"$WORK_DIR/compose.yaml\"" >> ~/.bashrc
 echo "export SERVICE_CHOICE=3" >> ~/.bashrc
 
 echo ""

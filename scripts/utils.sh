@@ -46,6 +46,30 @@ require_command() {
     done
 }
 
+service_preflight() {
+    case "${SERVICE_CHOICE}" in
+        1)
+            require_command bw jq docker || return 1
+            if [[ ! -f "${BITWARDEN_SCRIPT:-}" || ! -x "${BITWARDEN_SCRIPT:-}" ]]; then
+                echo "ERROR: Bitwarden script not found or not executable: ${BITWARDEN_SCRIPT:-}" >&2
+                return 1
+            fi
+            ;;
+        2)
+            require_command bw jq docker || return 1
+            require_command docker || return 1
+            ;;
+        3)
+            require_command passbolt jq docker || return 1
+            require_command docker || return 1
+            ;;
+        *)
+            echo "ERROR: Unsupported service choice: $SERVICE_CHOICE" >&2
+            return 1
+            ;;
+    esac
+}
+
 ensure_sudo_session() {
     if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
         return 0
@@ -60,6 +84,13 @@ ensure_sudo_session() {
 }
 
 docker_startup() {
+    if [[ "${SERVICE_CHOICE}" == "1" ]]; then
+        require_command sudo || return 1
+        echo "Starting Bitwarden from $BITWARDEN_SCRIPT"
+        sudo "$BITWARDEN_SCRIPT" start
+        return
+    fi
+
     local use_docker="${USE_DOCKER_COMPOSE:-auto}"
     local work_dir compose_file
 
@@ -109,8 +140,10 @@ initialize_scenario() {
     local session
 
     if [[ "${SERVICE_CHOICE}" == "3" ]]; then
-        echo "TODO: passbolt scenario flow is not implemented yet." >&2
-        return 1
+        docker_startup || return 1
+        require_command passbolt || return 1
+        echo "Passbolt uses the configured CLI authentication; no login/logout is required."
+        return 0
     fi
 
     require_command bw || return 1
@@ -184,6 +217,50 @@ dump_process() {
     sudo gcore -a -o "$output_prefix" "$host_pid"
 }
 
+passbolt_volume_names() {
+    docker volume ls --format '{{.Name}}' |
+        grep -E '(_database_volume|_gpg_volume|_jwt_volume)$'
+}
+
+backup_passbolt_volumes() {
+    local suffix_name="${1:-$(date -u '+%Y%m%dT%H%M%SZ')}"
+    local volume name mountpoint archive_dir
+
+    archive_dir="${DATA_DIR}_${suffix_name}"
+    mkdir -p -- "$archive_dir"
+
+    while read -r volume; do
+        [[ -n "$volume" ]] || continue
+        name="${volume##*_}"
+        mountpoint="$(docker volume inspect --format '{{.Mountpoint}}' "$volume")" || return 1
+        mkdir -p -- "$archive_dir/$name"
+        sudo cp -a -- "$mountpoint/." "$archive_dir/$name/" || return 1
+    done < <(passbolt_volume_names)
+
+    echo "Archived Passbolt volumes: $archive_dir"
+}
+
+restore_passbolt_volumes() {
+    local volume name mountpoint baseline_dir="${DATA_DIR}.bak"
+
+    if [[ ! -d "$baseline_dir" ]]; then
+        echo "ERROR: Missing Passbolt volume baseline: $baseline_dir" >&2
+        return 1
+    fi
+
+    while read -r volume; do
+        [[ -n "$volume" ]] || continue
+        name="${volume##*_}"
+        if [[ ! -d "$baseline_dir/$name" ]]; then
+            continue
+        fi
+        mountpoint="$(docker volume inspect --format '{{.Mountpoint}}' "$volume")" || return 1
+        sudo cp -a -- "$baseline_dir/$name/." "$mountpoint/" || return 1
+    done < <(passbolt_volume_names)
+
+    echo "Restored Passbolt volume baseline."
+}
+
 cleanup() {
     local suffix_name="${1:-$(date -u '+%Y%m%dT%H%M%SZ')}"
     local work_dir data_dir data_baseline data_archive
@@ -193,6 +270,12 @@ cleanup() {
     local should_reset_bw="${RESET_BW_STATE:-auto}"
 
     work_dir="$(resolve_work_dir)" || return 1
+
+    if [[ "${SERVICE_CHOICE}" == "1" ]]; then
+        require_command sudo || return 1
+        echo "Stopping Bitwarden..."
+        sudo "$BITWARDEN_SCRIPT" stop || return 1
+    fi
 
     if [[ "$use_docker" != "0" && "$use_docker" != "false" ]] && compose_available; then
         require_command docker || return 1
@@ -224,13 +307,20 @@ cleanup() {
         echo "No Caddy access log found; skipping Caddy log archive."
     fi
 
+    if [[ "${SERVICE_CHOICE}" == "3" ]]; then
+        backup_passbolt_volumes "$suffix_name" || return 1
+        restore_passbolt_volumes || return 1
+        data_dir=""
+    fi
+
     if [[ "${SERVICE_CHOICE}" == "1" || "${SERVICE_CHOICE}" == "2" ]]; then
         require_command bw || return 1
         bw logout >/dev/null 2>&1 || true
         unset BW_SESSION
+        data_dir="${DATA_DIR:-}"
+    else
+        data_dir="${data_dir:-}"
     fi
-
-    data_dir="${DATA_DIR:-}"
 
     if [[ -n "$data_dir" ]]; then
         data_baseline="${DATA_BASELINE:-$data_dir.bak}"

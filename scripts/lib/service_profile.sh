@@ -42,11 +42,12 @@ prompt_service_choice() {
 apply_service_profile() {
     case "${SERVICE_CHOICE}" in
         1)
-            WORK_DIR="${WORK_DIR:-$HOME/bitwarden}"
-            USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-auto}"
+            WORK_DIR="${WORK_DIR:-/opt/bitwarden}"
+            BITWARDEN_SCRIPT="${BITWARDEN_SCRIPT:-$WORK_DIR/bitwarden.sh}"
+            USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-0}"
             CONTAINER_NAME="${CONTAINER_NAME:-bitwarden}"
             RESET_BW_STATE="${RESET_BW_STATE:-auto}"
-            # TODO: Tune DATA_DIR defaults for self-hosted Bitwarden layout.
+            DATA_DIR="${DATA_DIR:-$WORK_DIR/bwdata}"
             ;;
         2)
             WORK_DIR="${WORK_DIR:-$HOME/vaultwarden}"
@@ -57,10 +58,11 @@ apply_service_profile() {
             ;;
         3)
             WORK_DIR="${WORK_DIR:-$HOME/passbolt}"
-            USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-auto}"
+            USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-true}"
             CONTAINER_NAME="${CONTAINER_NAME:-passbolt}"
             RESET_BW_STATE="${RESET_BW_STATE:-false}"
-            # TODO: Implement passbolt-specific data baseline/archive defaults.
+            COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yaml}"
+            DATA_DIR="${DATA_DIR:-$WORK_DIR/passbolt-data}"
             ;;
         *)
             echo "ERROR: Unsupported service choice: ${SERVICE_CHOICE}" >&2
@@ -68,7 +70,7 @@ apply_service_profile() {
             ;;
     esac
 
-    export WORK_DIR USE_DOCKER_COMPOSE CONTAINER_NAME RESET_BW_STATE
+    export WORK_DIR BITWARDEN_SCRIPT USE_DOCKER_COMPOSE CONTAINER_NAME RESET_BW_STATE
     export DATA_DIR
 }
 

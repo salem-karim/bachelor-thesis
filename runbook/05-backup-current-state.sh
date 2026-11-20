@@ -10,10 +10,10 @@ choice="$(prompt_service_choice 2 1 2 3)"
 
 case "$choice" in
     1)
-        # TODO: Confirm data directory layout for self-hosted Bitwarden VM.
-        WORK_DIR="$HOME/bitwarden"
-        DATA_DIR="$WORK_DIR/bw-data"
+        WORK_DIR="/opt/bitwarden"
+        DATA_DIR="$WORK_DIR/bwdata"
         bitwarden_variant=true
+        BITWARDEN_SCRIPT="$WORK_DIR/bitwarden.sh"
         echo "Configuring Bitwarden..."
         ;;
     2)
@@ -27,9 +27,10 @@ case "$choice" in
         ;;
     3)
         WORK_DIR="$HOME/passbolt"
-        DATA_DIR="$WORK_DIR/passbolt-data"
+        DATA_DIR="$HOME/.local/share/docker/volumes/passbolt_database_volume"
+        BACKUP_DIR="$WORK_DIR/passbolt_database_volume.bak"
         bitwarden_variant=false
-        # TODO: Implement passbolt-specific CLI/session backup strategy.
+        COMPOSE_FILE="$WORK_DIR/compose.yaml"
         ;;
     *)
         echo "Invalid choice. Exiting." >&2
@@ -37,13 +38,18 @@ case "$choice" in
         ;;
 esac
 
+if [[ "$SERVICE_CHOICE" == "3" ]]; then
+    mkdir -p "$BACKUP_DIR"
+    cp -a "$DATA_DIR" "$BACKUP_DIR"
+fi
+
 if [[ "$bitwarden_variant" = true ]]; then
     rm -rf "$HOME/.config/Bitwarden CLI"
     mkdir -p "$HOME/.config/Bitwarden CLI"
     bw config server "$SERVER_URL"
     bw logout >/dev/null 2>&1 || true
     cp -a "$HOME/.config/Bitwarden CLI/data.json" "$HOME/.config/Bitwarden CLI/data.json.bak"
+    mkdir -p "$DATA_DIR"
+    cp -a "$DATA_DIR" "$DATA_DIR.bak"
 fi
 
-mkdir -p "$DATA_DIR"
-cp -a "$DATA_DIR" "$DATA_DIR.bak"
