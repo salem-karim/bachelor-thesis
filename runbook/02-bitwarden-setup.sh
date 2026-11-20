@@ -50,7 +50,6 @@ CERT_FILE="$WORK_DIR/bwdata/ssl/self/bitwarden.lab/certificate.crt"
 scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/bitwarden-certificate.crt"
 
 # Set environment variables to run the scripts later
-# echo "export COMPOSE_FILE=\"$WORK_DIR/compose.yml\"" >> ~/.bashrc
 echo "export SERVICE_CHOICE=1" >> ~/.bashrc
 
 echo ""
