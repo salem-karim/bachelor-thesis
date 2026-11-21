@@ -67,17 +67,15 @@ stop_service() {
 if [[ "$SERVICE_CHOICE" == "3" ]]; then
     PASSBOLT_USER_PASSWORD="${PASSBOLT_USER_PASSWORD:-This24PassMasterW0rd}"
 
-    # Backup Passbolt CLI configuration
+    # Backup Passbolt CLI configuration with no password set
     cli_config_file="$HOME/.config/go-passbolt-cli/go-passbolt-cli.toml"
+    cp -a -- "$cli_config_file" "$cli_config_file.nopassword.bak" || exit 1
+
+    # Generate CLI configuration with user password set
+    passbolt configure --userPassword "$PASSBOLT_USER_PASSWORD" || exit 1
     cp -a -- "$cli_config_file" "$cli_config_file.bak" || exit 1
 
-    # Generate CLI configuration with user password 
-    passbolt configure --userPassword "$PASSBOLT_USER_PASSWORD" || exit 1
-    cp -a -- "$cli_config_file" "$cli_config_file.password.bak" || exit 1
-
     stop_service
-
-    mkdir -p "$BACKUP_DIR" || exit 1
 
     for volume in \
         passbolt_database_volume \
@@ -91,6 +89,8 @@ if [[ "$SERVICE_CHOICE" == "3" ]]; then
 
         # Remove previous baseline to avoid stale files
         rm -rf -- "${BACKUP_DIR:?BACKUP_DIR is not set}/$volume"
+
+        mkdir -p "$BACKUP_DIR" || exit 1
 
         cp -a -- "$DATA_DIR/$volume" "$BACKUP_DIR/" || exit 1
     done

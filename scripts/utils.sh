@@ -307,7 +307,6 @@ cleanup() {
         echo "Restored clean Passbolt volumes."
         echo "Previous volumes archived: $archive_dir"
 
-        # TODO: figure out restoring unauthenticated state?
         # Archive current CLI configuration and restore baseline
         if [[ -f "$cli_config_file.bak" ]]; then
 
