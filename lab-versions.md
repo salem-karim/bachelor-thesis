@@ -26,3 +26,4 @@
 - Passbolt CLI 0.5.3
 - gpg 2.4.7
 - libgcrypt 1.11.0
+- pymysql 1.1.1-2ubuntu1
