@@ -74,9 +74,9 @@ if [[ "$SERVICE_CHOICE" == "3" ]]; then
 
     # Generate CLI configuration with user password set
     passbolt_config_args=(--userPassword "$PASSBOLT_USER_PASSWORD")
-    if [[ "${PASSBOLT_MFA_MODE:-}" == "non-interactive-totp" && -n "${PASSBOLT_MFA_TOTP_TOKEN:-}" ]]; then
+    if [[ "${PASSBOLT_MFA_MODE:-}" == "noninteractive-totp" && -n "${PASSBOLT_MFA_TOTP_TOKEN:-}" ]]; then
         passbolt_config_args+=(
-            --mfaMode "non-interactive-totp"
+            --mfaMode "noninteractive-totp"
             --mfaTotpToken "$PASSBOLT_MFA_TOTP_TOKEN"
         )
     fi

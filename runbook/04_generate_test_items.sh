@@ -215,7 +215,7 @@ generate_passbolt_items() {
     echo ""
 
     if [[ -z "$passbolt_password" ]]; then
-        echo "ERROR: The Masterpassword is required for non-interactive generation of items." >&2
+        echo "ERROR: The Masterpassword is required for noninteractive generation of items." >&2
         exit 1
     fi
 

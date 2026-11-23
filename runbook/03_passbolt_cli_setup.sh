@@ -33,21 +33,21 @@ if [[ "${use_2fa,,}" == "y" || "${use_2fa,,}" == "yes" ]]; then
     echo ""
 
     if [[ -z "$passbolt_mfa_totp_token" ]]; then
-        echo "ERROR: A TOTP secret is required for non-interactive 2FA." >&2
+        echo "ERROR: A TOTP secret is required for noninteractive 2FA." >&2
         exit 1
     fi
 
     sed -i '/^export PASSBOLT_MFA_MODE=/d; /^export PASSBOLT_MFA_TOTP_TOKEN=/d' ~/.bashrc
-    grep -qxF "export PASSBOLT_MFA_MODE=\"non-interactive-totp\"" ~/.bashrc ||
-        echo "export PASSBOLT_MFA_MODE=\"non-interactive-totp\"" >> ~/.bashrc
+    grep -qxF "export PASSBOLT_MFA_MODE=\"noninteractive-totp\"" ~/.bashrc ||
+        echo "export PASSBOLT_MFA_MODE=\"noninteractive-totp\"" >> ~/.bashrc
     grep -qxF "export PASSBOLT_MFA_TOTP_TOKEN=\"$passbolt_mfa_totp_token\"" ~/.bashrc ||
         echo "export PASSBOLT_MFA_TOTP_TOKEN=\"$passbolt_mfa_totp_token\"" >> ~/.bashrc
 
-    export PASSBOLT_MFA_MODE="non-interactive-totp"
+    export PASSBOLT_MFA_MODE="noninteractive-totp"
     export PASSBOLT_MFA_TOTP_TOKEN="$passbolt_mfa_totp_token"
 
     passbolt_config_args+=(
-        --mfaMode "non-interactive-totp"
+        --mfaMode "noninteractive-totp"
         --mfaTotpToken "$passbolt_mfa_totp_token"
     )
 else
