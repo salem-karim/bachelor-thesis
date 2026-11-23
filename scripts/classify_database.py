@@ -22,13 +22,16 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from scripts.database import (
-    add_database_args,
-    connect_database,
-    get_columns,
-    get_tables,
-    get_values,
-)
+try:
+    from scripts.database import (
+        add_database_args,
+        connect_database,
+        get_columns,
+        get_tables,
+        get_values,
+    )
+except ModuleNotFoundError:
+    from database import add_database_args, connect_database, get_columns, get_tables, get_values
 
 ENC_RE = re.compile(
     r"^\d+\.[A-Za-z0-9_+/=-]+\|[A-Za-z0-9_+/=-]+"

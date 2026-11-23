@@ -18,7 +18,7 @@ else
     item_id=$(
       passbolt list resource --json |
           jq -er --arg name "$target_name"
-          '.[] | select(.name == "My Resource") | .id'
+          '.[] | select(.name == $target_name) | .id'
     )
     export TEST_SECRET="passbolt://$item_id"
 

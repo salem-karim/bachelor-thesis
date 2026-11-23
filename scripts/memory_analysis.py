@@ -31,7 +31,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.database import add_database_args, connect_database, quote_ident
+try:
+    from scripts.database import add_database_args, connect_database, quote_ident
+except ModuleNotFoundError:
+    from database import add_database_args, connect_database, quote_ident
 
 JWT_RE = re.compile(rb"eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}")
 

@@ -4,7 +4,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../utils.sh"
-source "$SCRIPT_DIR/markers.sh"
+source "$SCRIPT_DIR/../markers.sh"
 initialize_service_context
 prefix="$(date -u '+%Y%m%dT%H%M%SZ')_S5_core_"
 
@@ -40,7 +40,7 @@ else
     item_id=$(
       passbolt list resource --json |
           jq -er --arg name "$target_name"
-          '.[] | select(.name == "My Resource") | .id'
+          '.[] | select(.name == $target_name) | .id'
     )
 
     passbolt update resource --id "$item_id" \
