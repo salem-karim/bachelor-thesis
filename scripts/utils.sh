@@ -264,7 +264,7 @@ dump_process() {
         echo "Host PID: $host_pid"
         echo "Dumping process memory to: $output_prefix.$container"
 
-        sudo gcore -a -o "$output_prefix.$container" "$host_pid" || {
+        sudo gcore -o "$output_prefix.$container" "$host_pid" || {
             echo "ERROR: Failed to dump container: $container" >&2
             return 1
         }
