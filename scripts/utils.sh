@@ -118,7 +118,36 @@ docker_startup() {
         return 1
     }
 
-    echo "Containers are ready."
+    if [[ "${SERVICE_CHOICE}" == "3" ]]; then
+        wait_for_passbolt_ready || return 1
+        echo "Passbolt is ready."
+    else
+        echo "Containers are ready."
+    fi
+}
+
+wait_for_passbolt_ready() {
+    local attempt
+    local status_output
+
+    require_command curl || return 1
+
+    echo "Waiting for Passbolt readiness..."
+    for attempt in {1..60}; do
+        if status_output="$(run_docker_compose exec -T passbolt \
+            supervisorctl status nginx 2>/dev/null)" &&
+            grep -q 'RUNNING' <<< "$status_output" &&
+            curl --fail --silent --insecure --noproxy '*' \
+                --connect-timeout 2 --max-time 5 \
+                https://127.0.0.1/auth/verify.json >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+
+    echo "ERROR: Passbolt did not become ready within 120 seconds." >&2
+    run_docker_compose logs --tail=50 passbolt >&2 || true
+    return 1
 }
 
 initialize_scenario() {
@@ -129,8 +158,14 @@ initialize_scenario() {
     if [[ "${SERVICE_CHOICE}" == "3" ]]; then
         docker_startup || return 1
         require_command passbolt || return 1
-        passbolt verify
-        return 0
+        for _ in {1..30}; do
+            if passbolt verify; then
+                return 0
+            fi
+            sleep 2
+        done
+        echo "ERROR: Passbolt CLI verification failed after startup." >&2
+        return 1
     fi
 
     require_command bw || return 1
