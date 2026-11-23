@@ -157,9 +157,17 @@ dump_process() {
     local output_prefix="${1:-core}"
     local host_pid
     local container
+    local timeout_seconds="${GCORE_TIMEOUT_SECONDS:-900}"
+    local gcore_args="${GCORE_ARGS--a}"
     local -a containers=()
+    local -a gcore_options
 
-    require_command docker sudo || return 1
+    require_command docker sudo timeout gdb || return 1
+
+    if [[ ! "$timeout_seconds" =~ ^([1-9][0-9]*|0)$ ]]; then
+        echo "ERROR: GCORE_TIMEOUT_SECONDS must be a non-negative integer: $timeout_seconds" >&2
+        return 1
+    fi
 
     if [[ -z "$container_list" ]]; then
         echo "ERROR: CONTAINER_NAME is not set." >&2
@@ -190,11 +198,23 @@ dump_process() {
         echo "Container: $container"
         echo "Host PID: $host_pid"
         echo "Dumping process memory to: $output_prefix.$container"
+        if [[ "$timeout_seconds" != "0" ]]; then
+            echo "Maximum dump time: ${timeout_seconds}s (set GCORE_TIMEOUT_SECONDS=0 to disable)"
+        fi
 
-        sudo gcore -a -o "$output_prefix.$container" "$host_pid" || {
+        read -r -a gcore_options <<< "$gcore_args"
+
+        if [[ "$timeout_seconds" == "0" ]]; then
+            sudo gcore "${gcore_options[@]}" -o "$output_prefix.$container" "$host_pid"
+        else
+            sudo timeout --signal=INT --kill-after=10s "${timeout_seconds}s" \
+                gcore "${gcore_options[@]}" -o "$output_prefix.$container" "$host_pid"
+        fi
+        if [[ $? -ne 0 ]]; then
+            sudo rm -f -- "$output_prefix.$container.$host_pid"
             echo "ERROR: Failed to dump container: $container" >&2
             return 1
-        }
+        fi
     done
 }
 
@@ -292,7 +312,7 @@ cleanup() {
             passbolt_gpg_volume \
             passbolt_jwt_volume
         do
-            mv -- "$DATA_DIR/$volume" "$archive_dir/" || return 1
+            sudo mv -- "$DATA_DIR/$volume" "$archive_dir/" || return 1
         done
 
         # Restore clean baseline
@@ -301,7 +321,7 @@ cleanup() {
             passbolt_gpg_volume \
             passbolt_jwt_volume
         do
-            cp -a -- "$BACKUP_DIR/$volume" "$DATA_DIR/" || return 1
+            sudo cp -a -- "$BACKUP_DIR/$volume" "$DATA_DIR/" || return 1
         done
 
         echo "Restored clean Passbolt volumes."
