@@ -85,7 +85,7 @@ docker_startup() {
     if [[ "${SERVICE_CHOICE}" == "1" ]]; then
         require_command sudo || return 1
         echo "Starting Bitwarden from $BITWARDEN_SCRIPT"
-        sudo "$BITWARDEN_SCRIPT" start
+        sudo "$BITWARDEN_SCRIPT" restart
         return
     fi
 
