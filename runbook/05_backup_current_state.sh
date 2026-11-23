@@ -46,7 +46,7 @@ stop_service() {
     if [[ "${SERVICE_CHOICE}" == "1" ]]; then
         require_command sudo || return 1
         echo "Stopping Bitwarden..."
-        sudo "$BITWARDEN_SCRIPT" stop || return 1
+        "$BITWARDEN_SCRIPT" stop || return 1
     fi
 
     if [[ "${SERVICE_CHOICE}" != "1" ]]; then
