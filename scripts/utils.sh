@@ -140,16 +140,44 @@ initialize_scenario() {
     echo "Logging out any existing Bitwarden CLI session..." >&2
     bw logout >/dev/null 2>&1 || true
 
-    echo "Logging in to Bitwarden CLI..." >&2
-    session="$(bw login "$email" "$password" --raw)" || {
-        echo "ERROR: Bitwarden login failed" >&2
-        return 1
-    }
+    login_bitwarden_cli "$email" "$password" || return 1
+    session="${BW_SESSION:-}"
 
     export BW_SESSION="$session"
     unset session
 
     echo "Bitwarden CLI session initialized." >&2
+}
+
+login_bitwarden_cli() {
+    local email="${1:-testing@example.com}"
+    local password="${2:-This24PassMasterW0rd}"
+    local session
+
+    require_command bw || return 1
+    bw logout >/dev/null 2>&1 || true
+
+    if [[ -n "${BW_CLIENTID:-}" && -n "${BW_CLIENTSECRET:-}" ]]; then
+        export BW_PASSWORD="${BW_PASSWORD:-$password}"
+        echo "Logging in to Bitwarden CLI with API key..." >&2
+        bw login --apikey || {
+            echo "ERROR: Bitwarden API-key login failed" >&2
+            return 1
+        }
+
+        session="$(bw unlock --passwordenv BW_PASSWORD --raw)" || {
+            echo "ERROR: Bitwarden unlock failed" >&2
+            return 1
+        }
+    else
+        echo "Logging in to Bitwarden CLI with master password..." >&2
+        session="$(bw login "$email" "$password" --raw)" || {
+            echo "ERROR: Bitwarden login failed" >&2
+            return 1
+        }
+    fi
+
+    export BW_SESSION="$session"
 }
 
 dump_process() {

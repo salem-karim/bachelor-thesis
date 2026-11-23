@@ -125,15 +125,7 @@ generate_bitwarden_items() {
 generate_bw_items() {
     local with_attachment="$1"
 
-    echo "Logging in to Bitwarden CLI..." >&2
-    bw logout >/dev/null 2>&1 || true
-    session="$(bw login --raw)" || {
-        echo "ERROR: Bitwarden login failed" >&2
-        return 1
-    }
-
-    export BW_SESSION="$session"
-    unset session
+    login_bitwarden_cli "testing@example.com" "This24PassMasterW0rd" || return 1
 
 
     item1_json="$(create_bw_login "$name" "$username" "$password")"
