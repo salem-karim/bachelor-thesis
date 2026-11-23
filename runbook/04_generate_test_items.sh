@@ -125,7 +125,16 @@ generate_bitwarden_items() {
 generate_bw_items() {
     local with_attachment="$1"
 
-    bw login
+    echo "Logging in to Bitwarden CLI..." >&2
+    bw logout >/dev/null 2>&1 || true
+    session="$(bw login --raw)" || {
+        echo "ERROR: Bitwarden login failed" >&2
+        return 1
+    }
+
+    export BW_SESSION="$session"
+    unset session
+
 
     item1_json="$(create_bw_login "$name" "$username" "$password")"
     item1_id=$(jq -er '.id' <<<"$item1_json")
