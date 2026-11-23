@@ -12,6 +12,7 @@ export SERVICE_CHOICE
 
 case "$SERVICE_CHOICE" in
     1)
+        SERVER_URL="https://bitwarden.lab"
         WORK_DIR="/opt/bitwarden"
         BITWARDEN_SCRIPT="${BITWARDEN_SCRIPT:-$WORK_DIR/bitwarden.sh}"
         DATA_DIR="$WORK_DIR/bwdata"
