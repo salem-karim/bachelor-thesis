@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 source "$REPO_ROOT/scripts/utils.sh"
 
-require_command curl wget unzip jq || exit 1
+require_command curl wget jq || exit 1
 ensure_sudo_session || exit 1
 
 choice="$(prompt_service_choice 2 1 2)"
