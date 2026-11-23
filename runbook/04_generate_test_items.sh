@@ -86,7 +86,7 @@ create_bw_login() {
             | .username = $username
             | .password = $password
             | .uris = [{"match": null, "uri": $uri}])
-        | if $extra_text == "" && $extra_hidden == "" then . else
+        | if $extra_text == "" and $extra_hidden == "" then . else
             .fields = [
                 {"name": "text-marker", "value": $extra_text, "type": 0},
                 {"name": "hidden-marker", "value": $extra_hidden, "type": 1}
