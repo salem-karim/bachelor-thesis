@@ -351,16 +351,21 @@ def main():
     p.add_argument("--core-dir", default=".", help="Directory containing core dumps.")
     p.add_argument("--pattern", default="*_core*", help="Glob pattern for core dump filenames.")
     p.add_argument(
-        "--strings-dir", default="strings", help="Directory for extracted sorted strings."
+        "--strings-dir", default="../artifacts/strings",
+        help="Directory for extracted sorted strings.",
     )
-    p.add_argument("--diff-dir", default="diffs", help="Directory for diff output files.")
+    p.add_argument(
+        "--diff-dir", default="../artifacts/diffs",
+        help="Directory for diff output files.",
+    )
     p.add_argument(
         "--baseline",
         help="Baseline core dump; its strings will be extracted and sorted automatically.",
     )
     p.add_argument("--min-string-length", type=int, default=8)
     p.add_argument(
-        "--markers", default="marker_log.csv", help="Marker CSV; use --no-markers to disable."
+        "--markers", default="../artifacts/marker_log.csv",
+        help="Marker CSV; use --no-markers to disable.",
     )
     p.add_argument("--no-markers", action="store_true")
     p.add_argument(
@@ -369,10 +374,10 @@ def main():
         default=[],
         help="Database value to search as TABLE.COLUMN or SCHEMA.TABLE.COLUMN; repeat for multiple columns.",
     )
-    p.add_argument("--output", default="memory_analysis.csv")
-    p.add_argument("--marker-output", default="marker_search.csv")
-    p.add_argument("--db-search-output", default="database_value_search.csv")
-    p.add_argument("--jwt-output", default="jwt_search.csv")
+    p.add_argument("--output", default="../artifacts/memory_analysis.csv")
+    p.add_argument("--marker-output", default="../artifacts/marker_search.csv")
+    p.add_argument("--db-search-output", default="../artifacts/database_value_search.csv")
+    p.add_argument("--jwt-output", default="../artifacts/jwt_search.csv")
     add_database_args(p)
     args = p.parse_args()
 

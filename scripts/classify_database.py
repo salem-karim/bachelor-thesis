@@ -452,7 +452,7 @@ def classify(args, include_empty=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", default="column_classification.csv")
+    parser.add_argument("--output", default="../artifacts/column_classification.csv")
     parser.add_argument(
         "--include-empty",
         action="store_true",
