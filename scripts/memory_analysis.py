@@ -7,7 +7,7 @@ For each core dump this script:
   2. runs GNU diff (NOT comm) against a selected baseline;
   3. optionally runs a diff against the preceding dump;
   4. searches for exact marker strings from marker_log.csv;
-  5. optionally searches selected SQLite column values (e.g. password hash,
+  5. optionally searches selected SQL DB column values (e.g. password hash,
      salt) in raw, hex, standard Base64, and URL-safe Base64 representations;
   6. optionally searches JWT-like token patterns and records matching token
      text in the JWT CSV output.
@@ -27,10 +27,11 @@ import mmap
 import os
 import re
 import shutil
-import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+
+from scripts.database import add_database_args, connect_database, quote_ident
 
 JWT_RE = re.compile(rb"eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}")
 
@@ -131,49 +132,94 @@ def read_markers(path: Path | None) -> list[dict]:
     return markers
 
 
-def quote_ident(s: str) -> str:
-    return '"' + s.replace('"', '""') + '"'
+def parse_db_spec(spec: str) -> tuple[str, str]:
+    """Accept TABLE.COLUMN or SCHEMA.TABLE.COLUMN; split at the final dot."""
+    parts = spec.split(".")
+    if len(parts) < 2 or any(not part for part in parts):
+        raise RuntimeError(f"Invalid --db-value {spec!r}; use TABLE.COLUMN or SCHEMA.TABLE.COLUMN.")
+    return ".".join(parts[:-1]), parts[-1]
 
 
-def read_db_values(db_path: Path | None, specs: list[str]) -> list[dict]:
+def read_db_values(args, specs: list[str]) -> list[dict]:
     """
-    Read selected values from a SQLite DB read-only.
-    Each --db-value must be TABLE.COLUMN. If a column has multiple populated
-    rows, each value is searched and identified by a stable value hash, not
-    by printing the value itself.
+    Read selected values from SQLite, SQL Server, or MariaDB.
+
+    The account should have SELECT-only permissions. The script itself issues
+    metadata queries and SELECT statements only. Each --db-value accepts
+    TABLE.COLUMN or SCHEMA.TABLE.COLUMN.
     """
     if not specs:
         return []
-    if db_path is None:
-        raise RuntimeError("--db-value requires --database.")
 
-    uri = db_path.resolve().as_uri() + "?mode=ro"
+    dialect = args.database_type
+    conn = connect_database(args)
     result = []
 
-    with sqlite3.connect(uri, uri=True) as conn:
-        conn.execute("PRAGMA query_only = ON")
+    try:
+        cursor = conn.cursor()
         for spec in specs:
-            if "." not in spec:
-                raise RuntimeError(f"Invalid --db-value {spec!r}; use TABLE.COLUMN.")
-            table, column = spec.split(".", 1)
-            qtable, qcolumn = quote_ident(table), quote_ident(column)
+            table, column = parse_db_spec(spec)
+            table_parts = table.split(".")
+            qtable = ".".join(quote_ident(part, dialect) for part in table_parts)
+            qcolumn = quote_ident(column, dialect)
 
-            table_exists = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-                (table,),
-            ).fetchone()
-            if not table_exists:
-                raise RuntimeError(f"Table not found in database: {table}")
+            if dialect == "sqlite":
+                if len(table_parts) != 1:
+                    raise RuntimeError("SQLite --db-value accepts TABLE.COLUMN only.")
+                cursor.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                    (table,),
+                )
+                if not cursor.fetchone():
+                    raise RuntimeError(f"Table not found in database: {table}")
+                cursor.execute(f"PRAGMA table_info({qtable})")
+                columns = {row[1] for row in cursor.fetchall()}
 
-            columns = {r[1] for r in conn.execute(f"PRAGMA table_info({qtable})")}
+            elif dialect == "sqlserver":
+                schema = table_parts[-2] if len(table_parts) > 1 else "dbo"
+                table_name = table_parts[-1]
+                cursor.execute(
+                    "SELECT 1 FROM INFORMATION_SCHEMA.TABLES "
+                    "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?",
+                    (schema, table_name),
+                )
+                if not cursor.fetchone():
+                    raise RuntimeError(f"Table not found in database: {table}")
+                cursor.execute(
+                    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+                    "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?",
+                    (schema, table_name),
+                )
+                columns = {row[0] for row in cursor.fetchall()}
+                if len(table_parts) == 1:
+                    qtable = quote_ident(schema, dialect) + "." + qtable
+
+            else:  # MariaDB
+                schema = table_parts[-2] if len(table_parts) > 1 else args.db_name
+                table_name = table_parts[-1]
+                cursor.execute(
+                    "SELECT 1 FROM information_schema.TABLES "
+                    "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+                    (schema, table_name),
+                )
+                if not cursor.fetchone():
+                    raise RuntimeError(f"Table not found in database: {table}")
+                cursor.execute(
+                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+                    (schema, table_name),
+                )
+                columns = {row[0] for row in cursor.fetchall()}
+                if len(table_parts) == 1:
+                    qtable = quote_ident(schema, dialect) + "." + qtable
+
             if column not in columns:
                 raise RuntimeError(f"Column not found: {table}.{column}")
 
-            rows = conn.execute(
-                f"SELECT {qcolumn} FROM {qtable} WHERE {qcolumn} IS NOT NULL"
-            ).fetchall()
-
-            for index, (value,) in enumerate(rows, start=1):
+            # Values are never interpolated into SQL; only validated/quoted identifiers are.
+            cursor.execute(f"SELECT {qcolumn} FROM {qtable} WHERE {qcolumn} IS NOT NULL")
+            for index, row in enumerate(cursor.fetchall(), start=1):
+                value = row[0]
                 if isinstance(value, bytes):
                     raw = value
                 elif isinstance(value, str):
@@ -181,6 +227,7 @@ def read_db_values(db_path: Path | None, specs: list[str]) -> list[dict]:
                 elif isinstance(value, (int, float)):
                     raw = str(value).encode("ascii")
                 else:
+                    # Ignore NULL, date/time, UUID objects and other unsupported types.
                     continue
 
                 if not raw:
@@ -195,7 +242,9 @@ def read_db_values(db_path: Path | None, specs: list[str]) -> list[dict]:
                     }
                 )
 
-    return result
+        return result
+    finally:
+        conn.close()
 
 
 def find_all(mm, pattern: bytes) -> list[int]:
@@ -311,17 +360,17 @@ def main():
         "--markers", default="marker_log.csv", help="Marker CSV; use --no-markers to disable."
     )
     p.add_argument("--no-markers", action="store_true")
-    p.add_argument("--database", help="Optional SQLite database path for database-value searches.")
     p.add_argument(
         "--db-value",
         action="append",
         default=[],
-        help="SQLite value to search, as TABLE.COLUMN; repeat for multiple columns.",
+        help="Database value to search as TABLE.COLUMN or SCHEMA.TABLE.COLUMN; repeat for multiple columns.",
     )
     p.add_argument("--output", default="memory_analysis.csv")
     p.add_argument("--marker-output", default="marker_search.csv")
     p.add_argument("--db-search-output", default="database_value_search.csv")
     p.add_argument("--jwt-output", default="jwt_search.csv")
+    add_database_args(p)
     args = p.parse_args()
 
     core_dir = Path(args.core_dir)
@@ -354,10 +403,7 @@ def main():
 
     try:
         markers = read_markers(marker_path)
-        db_values = read_db_values(
-            Path(args.database) if args.database else None,
-            args.db_value,
-        )
+        db_values = read_db_values(args, args.db_value)
     except Exception as exc:
         p.error(str(exc))
 

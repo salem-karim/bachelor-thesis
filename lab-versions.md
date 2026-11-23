@@ -24,3 +24,5 @@
 - Passbolt 5.18.0-1-ce-non-root
 - Passbolt NginX 1.26.3
 - Passbolt CLI 0.5.3
+- gpg 2.4.7
+- libgcrypt 1.11.0
