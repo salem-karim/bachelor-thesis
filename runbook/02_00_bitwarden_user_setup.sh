@@ -25,4 +25,5 @@ if [[ ! -d "$REPO_ROOT/.git" ]]; then
 fi
 
 echo "Bitwarden user successfully configured."
+echo "Set a password for the bitwarden user: sudo passwd bitwarden"
 echo "Continue with: sudo -iu bitwarden"

@@ -57,7 +57,7 @@ def connect_database(args):
         connection_string = (
             f"DRIVER={{{driver}}};SERVER={args.db_host},{args.db_port or 1433};"
             f"DATABASE={args.db_name};UID={args.db_user};PWD={password};"
-            "Encrypt=yes;TrustServerCertificate=no;ApplicationIntent=ReadOnly;"
+            "Encrypt=yes;TrustServerCertificate=yes;ApplicationIntent=ReadOnly;"
         )
         conn = pyodbc.connect(connection_string, readonly=True, autocommit=False)
         return conn
