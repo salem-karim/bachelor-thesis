@@ -4,14 +4,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/utils.sh"
-
-if [[ -z "${SERVICE_CHOICE:-}" ]]; then
-    SERVICE_CHOICE="$(prompt_service_choice 2 1 2 3)" || exit 1
-    export SERVICE_CHOICE
-fi
-
-initialize_service_context
-service_preflight || exit 1
+source "$SCRIPT_DIR/scenario.sh"
 
 usage() {
     cat <<'EOF'
@@ -68,19 +61,19 @@ if [[ ${#SCENARIOS[@]} -eq 0 ]]; then
     SCENARIOS=(1 2 3 4 5 6 7)
 fi
 
+if [[ -z "${SERVICE_CHOICE:-}" ]]; then
+    SERVICE_CHOICE="$(prompt_service_choice 2 1 2 3)" || exit 1
+    export SERVICE_CHOICE
+fi
+
+initialize_service_context
+service_preflight || exit 1
+
 for ((attempt = 1; attempt <= repeat_count; attempt++)); do
     for scenario in "${SCENARIOS[@]}"; do
-    scenario_path="$SCRIPT_DIR/scenarios/s${scenario}.sh"
-
-    if [[ ! -f "$scenario_path" ]]; then
-        echo "ERROR: Scenario script not found: $scenario_path" >&2
-        exit 1
-    fi
-    echo "==> Running scenario S${scenario} (run ${attempt}/${repeat_count})"
-
-    ensure_sudo_session || exit 1
-    "$scenario_path"
-    echo "==> Completed scenario S${scenario}"
-    echo
+        echo "==> Running scenario S${scenario} (run ${attempt}/${repeat_count})"
+        run_scenario "$scenario" || exit 1
+        echo "==> Completed scenario S${scenario}"
+        echo
     done
 done
