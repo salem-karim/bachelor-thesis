@@ -5,6 +5,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 source "$REPO_ROOT/scripts/utils.sh"
+source "$HOME/.bashrc"
 
 choice="$(prompt_service_choice 2 1 2 3)" || exit 1
 

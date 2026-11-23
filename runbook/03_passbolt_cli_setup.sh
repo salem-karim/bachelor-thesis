@@ -56,3 +56,4 @@ else
 fi
 
 passbolt configure "${passbolt_config_args[@]}"
+source "$HOME/.bashrc"

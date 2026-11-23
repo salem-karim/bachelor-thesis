@@ -112,3 +112,5 @@ else
     sed -i '/^export BW_CLIENTID=/d; /^export BW_CLIENTSECRET=/d; /^export BW_PASSWORD=/d' ~/.bashrc
     unset BW_CLIENTID BW_CLIENTSECRET BW_PASSWORD
 fi
+
+source "$HOME/.bashrc"

@@ -154,6 +154,10 @@ login_bitwarden_cli() {
     local password="${2:-This24PassMasterW0rd}"
     local session
 
+    if [[ -f "$HOME/.bashrc" ]]; then
+        source "$HOME/.bashrc"
+    fi
+
     require_command bw || return 1
     bw logout >/dev/null 2>&1 || true
 
