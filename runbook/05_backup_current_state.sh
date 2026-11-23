@@ -88,7 +88,9 @@ if [[ "$SERVICE_CHOICE" == "3" ]]; then
         }
 
         # Remove previous baseline to avoid stale files
-        mv -- "${BACKUP_DIR:?BACKUP_DIR is not set}/$volume" "${BACKUP_DIR:?BACKUP_DIR is not set}/$volume.old"
+        if [[ -e "$BACKUP_DIR/$volume" ]]; then
+            mv -- "$BACKUP_DIR/$volume" "$BACKUP_DIR/$volume.old"
+        fi
 
         mkdir -p "$BACKUP_DIR" || exit 1
 
@@ -97,19 +99,29 @@ if [[ "$SERVICE_CHOICE" == "3" ]]; then
 fi
 
 if [[ "$bitwarden_variant" = true ]]; then
-    mv -- "$HOME/.config/Bitwarden CLI" "$HOME/.config/Bitwarden CLI.old"
+    # Reset Bitwarden CLI configuration
+    if [[ -e "$HOME/.config/Bitwarden CLI" ]]; then
+        mv -- "$HOME/.config/Bitwarden CLI" "$HOME/.config/Bitwarden CLI.old"
+    fi
+
     mkdir -p "$HOME/.config/Bitwarden CLI"
     bw config server "$SERVER_URL"
     bw logout >/dev/null 2>&1 || true
 
     bw_cli_data="$HOME/.config/Bitwarden CLI/data.json"
-    cp -a "$bw_cli_data" "$bw_cli_data.bak"
+
+    if [[ -f "$bw_cli_data" ]]; then
+        cp -a "$bw_cli_data" "$bw_cli_data.bak"
+    fi
 
     stop_service
 
     # Replace previous baseline completely
     mkdir -p "$DATA_DIR"
-    mv -- "${DATA_DIR:?DATA_DIR is not set}.bak" "${DATA_DIR:?DATA_DIR is not set}.bak.old"
+
+    if [[ -e "${DATA_DIR}.bak" ]]; then
+        mv -- "${DATA_DIR}.bak" "${DATA_DIR}.bak.old"
+    fi
     mkdir -p "$DATA_DIR.bak"
     cp -a -- "$DATA_DIR/." "$DATA_DIR.bak/" || exit 1
 fi
