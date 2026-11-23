@@ -89,12 +89,13 @@ if [[ "$SERVICE_CHOICE" == "3" ]]; then
 
         # Remove previous baseline to avoid stale files
         if [[ -e "$BACKUP_DIR/$volume" ]]; then
-            mv -- "$BACKUP_DIR/$volume" "$BACKUP_DIR/$volume.old"
+            sudo rm -rf -- "$BACKUP_DIR/$volume.old"
+            sudo mv -- "$BACKUP_DIR/$volume" "$BACKUP_DIR/$volume.old"
         fi
 
         mkdir -p "$BACKUP_DIR" || exit 1
 
-        cp -a -- "$DATA_DIR/$volume" "$BACKUP_DIR/" || exit 1
+        sudo cp -a -- "$DATA_DIR/$volume" "$BACKUP_DIR/" || exit 1
     done
 fi
 
