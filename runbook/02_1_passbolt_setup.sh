@@ -13,13 +13,28 @@ fi
 WORK_DIR="${WORK_DIR:-$HOME/passbolt}"
 mkdir -p "$WORK_DIR/certs"
 cd "$WORK_DIR" || exit 1
-cp "$REPO_ROOT/lab/passbolt/compose.yml" "$WORK_DIR/compose.yml"
-openssl req -newkey rsa:4096 -x509 -sha256 -days 730 -noenc -batch \
-    -subj "/CN=passbolt.lab" -addext "subjectAltName=DNS:passbolt.lab"\
-    -out "$WORK_DIR/certs/cert.pem" -keyout "$WORK_DIR/certs/key.pem"
-chmod 600 certs/key.pem
-chmod 644 certs/cert.pem
 
+if [[ ! -f "$WORK_DIR/certs/cert.pem" || ! -f "$WORK_DIR/certs/key.pem" ]]; then
+    echo "Generating Passbolt self-signed certificate..."
+
+    openssl req -newkey rsa:4096 -x509 -sha256 -days 730 -noenc -batch \
+        -subj "/CN=passbolt.lab" \
+        -addext "subjectAltName=DNS:passbolt.lab" \
+        -out "$WORK_DIR/certs/cert.pem" \
+        -keyout "$WORK_DIR/certs/key.pem"
+
+    chmod 600 "$WORK_DIR/certs/key.pem"
+    chmod 644 "$WORK_DIR/certs/cert.pem"
+else
+    echo "Existing Passbolt certificate found. Reusing it."
+fi
+
+if [[ ! -f "$WORK_DIR/compose.yml" ]]; then
+    echo "Copying compose file to $WORK_DIR"
+    cp "$REPO_ROOT/lab/passbolt/compose.yml" "$WORK_DIR/compose.yml"
+else
+    echo "Compose File already exists"
+fi
 
 docker compose down --remove-orphans
 docker compose up -d
@@ -101,19 +116,6 @@ fi
 
 echo "Passbolt is running successfully."
 
-docker compose exec passbolt /usr/share/php/passbolt/bin/cake \
-  passbolt register_user \
-    -u testing@example.com \
-    -f Name \
-    -l Lastname \
-    -r admin
-
-echo "Please open the registration URL displayed above"
-echo "and complete the Passbolt account registration."
-echo "The scripts default to the Password This24PassMasterW0rd"
-echo ""
-read -r -p "Press ENTER once you have completed the registration to continue..."
-
 CERT_FILE="$WORK_DIR/certs/cert.pem"
 scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/passbolt-certificate.crt"
 
@@ -125,15 +127,28 @@ echo "export SERVICE_CHOICE=3" >> ~/.bashrc
 source "$HOME/.bashrc"
 
 echo ""
-echo "Manual configuration required:"
+echo "Manual configuration required before registration:"
 echo ""
-echo "1. Add a DNS entry on your Ubuntu host."
-echo "   Find your VM's IP address using: ip a"
-echo "   Run (replace the IP with your VM's IP):"
-echo "   echo '192.168.XXX.XXX passbolt.lab' | sudo tee -a /etc/hosts"
+echo "1. Make passbolt.lab resolve to your Passbolt server IP"
+echo "   on the machine where you will open the browser."
 echo ""
-echo "2. Add the Passbolt certificate to Ubuntu's trusted certificates:"
+echo "2. Trust the certificate on that same machine:"
 echo "   sudo cp /tmp/passbolt-certificate.crt /usr/local/share/ca-certificates/passbolt-certificate.crt"
 echo "   sudo update-ca-certificates"
 echo ""
+echo "3. Open https://passbolt.lab and verify that the browser"
+echo "   trusts the certificate."
+echo ""
+read -r -p "Press Enter once DNS and certificate trust are configured..."
+
+docker compose exec passbolt /usr/share/php/passbolt/bin/cake \
+  passbolt register_user \
+    -u testing@example.com \
+    -f Name \
+    -l Lastname \
+    -r admin
+
+echo ""
+echo "Open the registration URL displayed above and complete registration."
+
 
