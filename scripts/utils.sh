@@ -225,6 +225,7 @@ dump_process() {
     local host_pid
     local container
     local -a containers=()
+    local timestamp
 
     require_command docker sudo || return 1
 
@@ -238,6 +239,11 @@ dump_process() {
 
     ensure_sudo_session || return 1
     ensure_artifact_dir || return 1
+
+    timestamp="$(date -u '+%Y%m%d-%H%M%S')"
+    if [[ "$output_prefix" == "core" ]]; then
+        output_prefix="${timestamp}_core"
+    fi
 
     output_prefix="$(resolve_artifact_path "$output_prefix")"
 

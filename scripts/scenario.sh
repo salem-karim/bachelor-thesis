@@ -156,10 +156,10 @@ run_scenario() {
     fi
 
     ensure_sudo_session || return 1
-    prefix="$(date -u '+%Y%m%dT%H%M%SZ')_S${scenario}_core_"
+    prefix="$(date -u '+%Y%m%d-%H%M%S')_S${scenario}_core"
 
     if run_scenario_action "$scenario"; then
-        if dump_process "" "$prefix"; then
+        if dump_process "$prefix"; then
             :
         else
             status=$?
