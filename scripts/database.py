@@ -193,8 +193,26 @@ def get_values(conn, dialect, table, column, schema=None):
     quoted_table = quote_ident(table, dialect)
     quoted_column = quote_ident(column, dialect)
 
-    if dialect == "sqlserver" and schema:
-        quoted_table = f"{quote_ident(schema, dialect)}.{quoted_table}"
+    if dialect == "sqlserver":
+        if schema:
+            quoted_table = f"{quote_ident(schema, dialect)}.{quoted_table}"
+
+        # Convert datetimeoffset to text because pyodbc may not
+        # support fetching SQL Server type -155 directly.
+        cursor.execute(
+            """
+            SELECT DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = ?
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = ?
+            """,
+            (schema or "dbo", table, column),
+        )
+        metadata = cursor.fetchone()
+
+        if metadata and metadata[0].lower() == "datetimeoffset":
+            quoted_column = f"CONVERT(nvarchar(50), {quoted_column}, 127)"
 
     query = f"""
         SELECT {quoted_column}
@@ -202,5 +220,4 @@ def get_values(conn, dialect, table, column, schema=None):
     """
 
     cursor.execute(query)
-
     return [row[0] for row in cursor.fetchall()]
