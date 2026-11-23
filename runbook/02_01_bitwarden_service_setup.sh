@@ -2,32 +2,27 @@
 
 set -Eeuo pipefail
 
+if [[ "$(id -un)" != "bitwarden" ]]; then
+    echo "This script must be executed as the bitwarden user." >&2
+    exit 1
+fi
+
+REPO_ROOT="${REPO_ROOT:-/opt/bitwarden/repo}"
+
 if [[ -z "${HOST_USER:-}" || -z "${HOST_DOMAIN:-}" ]]; then
     echo "Please run this script with HOST_USER and HOST_DOMAIN set." >&2
     exit 1
 fi
 
 WORK_DIR="/opt/bitwarden"
-if ! id bitwarden >/dev/null 2>&1; then
-    sudo adduser --disabled-password --gecos "" bitwarden
-fi
 
-sudo usermod -aG sudo bitwarden
+cd "$WORK_DIR"
 
-if ! getent group docker >/dev/null 2>&1; then
-    sudo groupadd docker
-fi
-sudo usermod -aG docker bitwarden
-sudo mkdir -p "$WORK_DIR"
-sudo chmod -R 700 /opt/bitwarden
-sudo chown -R bitwarden:bitwarden /opt/bitwarden
+# Download Bitwarden
+curl -Lso bitwarden.sh \
+    "https://func.bitwarden.com/api/dl/?app=self-host&platform=linux"
 
-sudo -u bitwarden -H bash -s <<'EOF'
-set -Eeuo pipefail
-cd /opt/bitwarden
-curl -Lso bitwarden.sh "https://func.bitwarden.com/api/dl/?app=self-host&platform=linux"
 chmod 700 bitwarden.sh
-EOF
 
 echo ""
 echo "Bitwarden installer will now start."
@@ -52,12 +47,21 @@ echo ""
 echo "   The generated certificate must be trusted on both the VM"
 echo "   and your host."
 echo ""
-sudo -u bitwarden -H bash -s <<'EOF'
-set -Eeuo pipefail
-cd /opt/bitwarden
 ./bitwarden.sh install
+
+# Install custom Docker Compose configuration
+OVERRIDE_SOURCE="$REPO_ROOT/lab/bitwarden/docker-compose.override.yml"
+OVERRIDE_DEST="$WORK_DIR/bwdata/docker/docker-compose.override.yml"
+
+if [[ ! -f "$OVERRIDE_SOURCE" ]]; then
+    echo "Missing Docker Compose override: $OVERRIDE_SOURCE" >&2
+    exit 1
+fi
+
+install -m 600 "$OVERRIDE_SOURCE" "$OVERRIDE_DEST"
+
+# Start Bitwarden
 ./bitwarden.sh start
-EOF
 
 CERT_FILE="$WORK_DIR/bwdata/ssl/self/bitwarden.lab/certificate.crt"
 sudo -u bitwarden cat "$CERT_FILE" | sudo tee /tmp/bitwarden-certificate.crt >/dev/null
@@ -80,4 +84,4 @@ echo "2. Add the Bitwarden certificate to Ubuntu's trusted certificates:"
 echo "   sudo cp /tmp/bitwarden-certificate.crt /usr/local/share/ca-certificates/bitwarden-certificate.crt"
 echo "   sudo update-ca-certificates"
 echo "Now create an account manually, after getting the Certificates from the VM"
-echo "Also continue the next scripts as the bitwarden user"
+echo "Continue the next scripts as the bitwarden user"
