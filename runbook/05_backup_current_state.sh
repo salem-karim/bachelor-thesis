@@ -51,11 +51,11 @@ stop_service() {
         require_command docker || return 1
 
         if ! compose_available; then
-            echo "ERROR: No Docker Compose file found in WORK_DIR: $work_dir" >&2
+            echo "ERROR: No Docker Compose file found in WORK_DIR: $WORK_DIR" >&2
             return 1
         fi
 
-        echo "Stopping Docker Compose services in: $work_dir"
+        echo "Stopping Docker Compose services in: $WORK_DIR"
         run_docker_compose down || {
             echo "ERROR: docker compose down failed" >&2
             return 1
