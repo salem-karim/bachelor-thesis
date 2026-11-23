@@ -211,6 +211,15 @@ generate_bw_items() {
 }
 
 generate_passbolt_items() {
+    read -rsp "Enter the Masterpassword to generate items: " passbolt_password
+    echo ""
+
+    if [[ -z "$passbolt_password" ]]; then
+        echo "ERROR: The Masterpassword is required for non-interactive generation of items." >&2
+        exit 1
+    fi
+
+    export USERPASSWORD=$passbolt_password
     local card_metadata card_secret identity_metadata identity_secret
     local id_cardholder id_number id_card_code id_month id_year
     local id_name id_address id_phone id_email id_ssn
@@ -299,7 +308,7 @@ generate_passbolt_items() {
             --secret-field "custom_fields=$identity_secret" --yes |
             extract_resource_id
     )
-
+    unset USERPASSWORD
     log_item_ids
 }
 
