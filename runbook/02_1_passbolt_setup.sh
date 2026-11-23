@@ -117,6 +117,8 @@ fi
 echo "Passbolt is running successfully."
 
 CERT_FILE="$WORK_DIR/certs/cert.pem"
+sudo cp "$CERT_FILE" /usr/local/share/ca-certificates/passbolt-certificate.crt
+sudo update-ca-certificates
 scp "$CERT_FILE" "$HOST_USER@$HOST_DOMAIN:/tmp/passbolt-certificate.crt"
 
 # Set environment variables to run the scripts later
