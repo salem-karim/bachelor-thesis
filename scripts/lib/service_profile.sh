@@ -60,7 +60,7 @@ apply_service_profile() {
         3)
             WORK_DIR="${WORK_DIR:-$HOME/passbolt}"
             USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-true}"
-            CONTAINER_NAME="${CONTAINER_NAME:-passbolt-passbolt-1 passbolt-db-1}"
+            CONTAINER_NAME="${CONTAINER_NAME:-passbolt-passbolt-1}"
             RESET_BW_STATE="${RESET_BW_STATE:-false}"
             COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yml}"
             DATA_DIR="${DATA_DIR:-$HOME/.local/share/docker/volumes}"
