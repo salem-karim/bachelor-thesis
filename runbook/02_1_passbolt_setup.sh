@@ -101,12 +101,12 @@ fi
 
 echo "Passbolt is running successfully."
 
-docker compose exec passbolt su -m -c "/usr/share/php/passbolt/bin/cake \
+docker compose exec passbolt /usr/share/php/passbolt/bin/cake \
   passbolt register_user \
     -u testing@example.com \
     -f Name \
     -l Lastname \
-    -r admin" -s /bin/sh www-data
+    -r admin
 
 echo "Please open the registration URL displayed above"
 echo "and complete the Passbolt account registration."
