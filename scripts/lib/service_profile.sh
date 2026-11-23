@@ -45,7 +45,7 @@ apply_service_profile() {
             WORK_DIR="${WORK_DIR:-/opt/bitwarden}"
             BITWARDEN_SCRIPT="${BITWARDEN_SCRIPT:-$WORK_DIR/bitwarden.sh}"
             USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-0}"
-            CONTAINER_NAME="${CONTAINER_NAME:-bitwarden-api bitwarden-identity}"
+            CONTAINER_NAME="${CONTAINER_NAME:-bitwarden-api bitwarden-identity bitwarden-mssql}"
             RESET_BW_STATE="${RESET_BW_STATE:-auto}"
             DATA_DIR="${DATA_DIR:-$WORK_DIR/bwdata}"
             ;;
@@ -60,7 +60,7 @@ apply_service_profile() {
         3)
             WORK_DIR="${WORK_DIR:-$HOME/passbolt}"
             USE_DOCKER_COMPOSE="${USE_DOCKER_COMPOSE:-true}"
-            CONTAINER_NAME="${CONTAINER_NAME:-passbolt-passbolt-1}"
+            CONTAINER_NAME="${CONTAINER_NAME:-passbolt-passbolt-1 passbolt-db-1}"
             RESET_BW_STATE="${RESET_BW_STATE:-false}"
             COMPOSE_FILE="${COMPOSE_FILE:-$WORK_DIR/compose.yml}"
             DATA_DIR="${DATA_DIR:-$HOME/.local/share/docker/volumes}"
