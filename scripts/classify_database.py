@@ -40,6 +40,9 @@ ENC_RE = re.compile(
 PGP_MESSAGE_RE = re.compile(
     r"\A-----BEGIN PGP MESSAGE-----.*?-----END PGP MESSAGE-----\Z", re.DOTALL
 )
+PGP_PUBLIC_KEY_RE = re.compile(
+    r"\A-----BEGIN PGP PUBLIC KEY BLOCK-----.*?-----END PGP PUBLIC KEY BLOCK-----\Z", re.DOTALL
+)
 UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[ T].*)?$")
@@ -118,6 +121,7 @@ def check_value_format(value):
     patterns = (
         (ENC_RE, "ENCRYPTED_FORMAT_CANDIDATE"),
         (PGP_MESSAGE_RE, "PGP_ENCRYPTED_MESSAGE"),
+        (PGP_PUBLIC_KEY_RE, "PGP_PUBLIC_KEY"),
         (UUID_RE, "UUID"),
         (EMAIL_RE, "EMAIL"),
         (TIMESTAMP_RE, "TIMESTAMP"),
@@ -308,6 +312,12 @@ def thesis_category(column, json_categories, formats):
 
     if lowered.endswith("_token") or lowered in {"token", "secret", "password"}:
         return "S", "Potential authentication material based on column name; not verified."
+
+    if "public" in lowered or "PGP_PUBLIC_KEY" in formats:
+        return (
+            "M",
+            "Potential public key material based on column name and observed_format; not verified",
+        )
 
     categories = set()
     notes = []
