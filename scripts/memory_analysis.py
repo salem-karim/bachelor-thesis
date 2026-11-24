@@ -4,7 +4,7 @@ Repeatable, read-only memory analysis for password-manager core dumps.
 
 For each core dump this script:
   1. extracts strings with `strings -a -n N | LC_ALL=C sort -u`;
-  2. runs `comm -13` against a selected baseline (multiple core dumps
+  2. runs GNU diff against a selected baseline (multiple core dumps
      are merged into one baseline string set);
   3. optionally runs a diff against the preceding dump;
   4. searches for exact marker strings from marker_log.csv;
@@ -99,19 +99,24 @@ def merge_sorted_string_files(inputs: list[Path], output: Path) -> None:
 
 def run_diff_new_lines(old_file: Path, new_file: Path, output_file: Path) -> int:
     """
-    Output only lines in new_file
+    Reproduce the user's GNU diff approach: output only lines in new_file
     that are not present in old_file. Inputs are already sorted with LC_ALL=C.
     """
     env = {**os.environ, "LC_ALL": "C"}
-    comm_cmd = shutil.which("comm")
-    if not comm_cmd:
-        raise RuntimeError("Required command not found: install coreutils.")
-
-    command = [comm_cmd, "-13", str(old_file), str(new_file)]
+    command = [
+        shutil.which("diff") or "diff",
+        "--old-group-format=",
+        "--new-group-format=%>",
+        "--changed-group-format=%>",
+        "--unchanged-group-format=",
+        str(old_file),
+        str(new_file),
+    ]
     with output_file.open("wb") as out:
         proc = subprocess.run(command, stdout=out, stderr=subprocess.PIPE, env=env, check=False)
 
-    if proc.returncode != 0:
+    # GNU diff exit code 0 means identical; 1 means differences; >1 means error.
+    if proc.returncode not in (0, 1):
         raise RuntimeError(proc.stderr.decode("utf-8", "replace")[:1000])
 
     with output_file.open("rb") as handle:
@@ -414,9 +419,9 @@ def main():
     if args.min_string_length < 1:
         p.error("--min-string-length must be positive.")
 
-    comm_cmd = shutil.which("comm")
-    if not comm_cmd:
-        p.error("comm is required.")
+    diff_cmd = shutil.which("diff")
+    if not diff_cmd:
+        p.error("GNU diff is required.")
 
     baseline_cores: list[Path] = []
     for baseline_spec in args.baseline:
