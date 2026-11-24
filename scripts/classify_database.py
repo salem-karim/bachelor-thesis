@@ -289,7 +289,7 @@ def thesis_category(column, json_categories, formats):
     # Limited schema-based hints.
     personal_data = {"email", "name", "username", "password_hint", "hint", "file_name"}
 
-    if lowered in personal_data:
+    if lowered in personal_data and "READABLE_TEXT" in formats:
         return "P", "Potential personal information based on column name; not verified."
 
     if lowered in {"password_hash", "salt"} or lowered.endswith("_password_hash"):
@@ -298,10 +298,13 @@ def thesis_category(column, json_categories, formats):
     if lowered in {"twofactor_secret", "two_factor_secret", "api_key", "client_secret"}:
         return "S", "Potential security-related secret based on column name; not verified."
 
-    if any(
-        token in lowered for token in ("private_key", "wrapped_key", "encrypted_key", "master_key")
-    ):
-        return "K", "Potential key material based on column name; not verified."
+    if lowered in {"akey", "key", "private_key", "wrapped_key", "encrypted_key", "master_key"}:
+        if "ENCRYPTED_FORMAT_CANDIDATE" not in formats:
+            return "K", "Potential key material based on column name; not verified."
+        return (
+            "K",
+            "Potential encrypted key material based on column name and observed_format; not verified.",
+        )
 
     if lowered.endswith("_token") or lowered in {"token", "secret", "password"}:
         return "S", "Potential authentication material based on column name; not verified."
