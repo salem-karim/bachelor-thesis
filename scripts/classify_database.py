@@ -318,7 +318,7 @@ def thesis_category(column, json_categories, formats):
             "M",
             "Potential public key material based on column name and observed_format; not verified.",
         )
-    if "kdf" in lowered:
+    if "kdf_" in lowered or "Kdf" in column:
         return "S", "Potential KDF Algorithm relevant value based on column name; not verified."
 
     categories = set()
