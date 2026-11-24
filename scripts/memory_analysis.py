@@ -4,7 +4,8 @@ Repeatable, read-only memory analysis for password-manager core dumps.
 
 For each core dump this script:
   1. extracts strings with `strings -a -n N | LC_ALL=C sort -u`;
-  2. runs GNU diff (NOT comm) against a selected baseline;
+  2. runs `comm -13` against a selected baseline (multiple core dumps
+     are merged into one baseline string set);
   3. optionally runs a diff against the preceding dump;
   4. searches for exact marker strings from marker_log.csv;
   5. optionally searches selected SQL DB column values (e.g. password hash,
@@ -76,26 +77,41 @@ def run_sort_strings(core: Path, output: Path, min_length: int) -> None:
         tmp.unlink(missing_ok=True)
 
 
+def merge_sorted_string_files(inputs: list[Path], output: Path) -> None:
+    """Merge and sort-unique already sorted string files."""
+    sort_cmd = shutil.which("sort")
+    if not sort_cmd:
+        raise RuntimeError("Required command not found: install coreutils.")
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "LC_ALL": "C"}
+    with output.open("wb") as dst:
+        proc = subprocess.run(
+            [sort_cmd, "-u", *(str(path) for path in inputs)],
+            stdout=dst,
+            stderr=subprocess.PIPE,
+            env=env,
+            check=False,
+        )
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.decode("utf-8", "replace")[:1000])
+
+
 def run_diff_new_lines(old_file: Path, new_file: Path, output_file: Path) -> int:
     """
-    Reproduce the user's GNU diff approach: output only lines in new_file
+    Output only lines in new_file
     that are not present in old_file. Inputs are already sorted with LC_ALL=C.
     """
     env = {**os.environ, "LC_ALL": "C"}
-    command = [
-        shutil.which("diff") or "diff",
-        "--old-group-format=",
-        "--new-group-format=%>",
-        "--changed-group-format=%>",
-        "--unchanged-group-format=",
-        str(old_file),
-        str(new_file),
-    ]
+    comm_cmd = shutil.which("comm")
+    if not comm_cmd:
+        raise RuntimeError("Required command not found: install coreutils.")
+
+    command = [comm_cmd, "-13", str(old_file), str(new_file)]
     with output_file.open("wb") as out:
         proc = subprocess.run(command, stdout=out, stderr=subprocess.PIPE, env=env, check=False)
 
-    # GNU diff exit code 0 means identical; 1 means differences; >1 means error.
-    if proc.returncode not in (0, 1):
+    if proc.returncode != 0:
         raise RuntimeError(proc.stderr.decode("utf-8", "replace")[:1000])
 
     with output_file.open("rb") as handle:
@@ -109,9 +125,15 @@ def parse_scenario(filename: str) -> str:
 
 
 def parse_run(filename: str) -> str:
-    # Example: 20261024T083340Z_S7_core_.117491
-    m = re.search(r"(\d+)$", filename)
+    # Example: 20261024T083340Z_S7_core_.bitwarden-api
+    m = re.search(r"^(\d{8}T\d{6}Z)_S\d+_core", filename)
     return m.group(1) if m else ""
+
+
+def parse_container(filename: str) -> str:
+    """Return the container name suffix used for multi-container core dumps."""
+    m = re.search(r"\.([^.]+)$", filename)
+    return m.group(1) if m else filename
 
 
 def read_markers(path: Path | None) -> list[dict]:
@@ -360,7 +382,9 @@ def main():
     )
     p.add_argument(
         "--baseline",
-        help="Baseline core dump; its strings will be extracted and sorted automatically.",
+        action="append",
+        default=[],
+        help="Baseline core dump or glob (repeat for multiple container dumps).",
     )
     p.add_argument("--min-string-length", type=int, default=8)
     p.add_argument(
@@ -390,20 +414,34 @@ def main():
     if args.min_string_length < 1:
         p.error("--min-string-length must be positive.")
 
-    diff_cmd = shutil.which("diff")
-    if not diff_cmd:
-        p.error("GNU diff is required.")
+    comm_cmd = shutil.which("comm")
+    if not comm_cmd:
+        p.error("comm is required.")
 
-    baseline_core = Path(args.baseline) if args.baseline else None
-    baseline_strings = None
+    baseline_cores: list[Path] = []
+    for baseline_spec in args.baseline:
+        baseline_path = Path(baseline_spec)
+        if baseline_path.is_file():
+            baseline_cores.append(baseline_path)
+        elif any(char in baseline_spec for char in "*?["):
+            if baseline_path.is_absolute():
+                matches = sorted(
+                    path for path in baseline_path.parent.glob(baseline_path.name)
+                    if path.is_file()
+                )
+            else:
+                matches = sorted(
+                    path for path in core_dir.glob(baseline_spec)
+                    if path.is_file()
+                )
+            baseline_cores.extend(matches)
+        else:
+            p.error(f"Baseline core dump not found: {baseline_path}")
 
-    if baseline_core and not baseline_core.is_file():
-        p.error(f"Baseline core dump not found: {baseline_core}")
-
-    baseline_strings: Path | None = None
-
-    if baseline_core:
-        baseline_strings = strings_dir / f"baseline_{baseline_core.name}.sorted.txt"
+    if baseline_cores:
+        baseline_cores = sorted(set(baseline_cores))
+        if len(baseline_cores) == 0:
+            p.error("No baseline core dumps matched.")
 
     marker_path = None if args.no_markers else Path(args.markers)
     if marker_path and not marker_path.is_file():
@@ -419,25 +457,34 @@ def main():
     if not cores:
         p.error(f"No files matched {args.pattern!r} in {core_dir}")
 
-    if baseline_core is not None:
+    baseline_strings: Path | None = None
+    if baseline_cores:
         try:
-            print(f"Preparing baseline from core dump: {baseline_core}", flush=True)
-
-            baseline_output = strings_dir / f"baseline_{baseline_core.name}.sorted.txt"
-
-            run_sort_strings(
-                baseline_core,
-                baseline_output,
-                args.min_string_length,
+            print(
+                f"Preparing merged baseline from {len(baseline_cores)} core dump(s):",
+                flush=True,
             )
+            for baseline_core in baseline_cores:
+                print(f"  {baseline_core}", flush=True)
 
-            baseline_strings = baseline_output
+            baseline_parts = []
+            for index, baseline_core in enumerate(baseline_cores, 1):
+                baseline_output = strings_dir / f"baseline_{index}_{baseline_core.name}.sorted.txt"
+                run_sort_strings(
+                    baseline_core,
+                    baseline_output,
+                    args.min_string_length,
+                )
+                baseline_parts.append(baseline_output)
+
+            baseline_strings = strings_dir / "baseline_merged.sorted.txt"
+            merge_sorted_string_files(baseline_parts, baseline_strings)
 
         except Exception as exc:
             p.error(f"Could not prepare baseline core dump: {exc}")
 
     main_rows, marker_rows, db_rows, jwt_rows = [], [], [], []
-    previous_strings = None
+    previous_strings_by_container: dict[str, Path] = {}
 
     for i, core in enumerate(cores, 1):
         print(f"[{i}/{len(cores)}] {core.name}", flush=True)
@@ -469,13 +516,15 @@ def main():
                 row["baseline_diff_file"] = str(diff_path)
                 row["baseline_new_strings"] = count
 
+            container_name = parse_container(core.name)
+            previous_strings = previous_strings_by_container.get(container_name)
             if previous_strings is not None:
                 diff_path = diff_dir / f"{core.name}.vs_previous.new.txt"
                 count = run_diff_new_lines(previous_strings, strings_file, diff_path)
                 row["previous_diff_file"] = str(diff_path)
                 row["previous_new_strings"] = count
 
-            previous_strings = strings_file
+            previous_strings_by_container[container_name] = strings_file
 
             for found in marker_search(core, markers):
                 marker_rows.append(
