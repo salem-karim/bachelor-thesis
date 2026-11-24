@@ -20,6 +20,8 @@
 - MSSQL Server 2025 CU5
 - Bitwarden Containers 2026.10.1
 - Bitwarden NginX 1.31.8
+- pyodbc 5.3.0-1build1
+- msodbcsql18 18.7.1.1-1
 - Mariadb 10.11
 - Passbolt 5.18.0-1-ce-non-root
 - Passbolt NginX 1.26.3
