@@ -16,6 +16,14 @@ fi
 
 WORK_DIR="/opt/bitwarden"
 
+echo "Installing Microsoft ODBC Driver 18 for SQL Server..."
+curl -fsSL -O "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+sudo dpkg -i packages-microsoft-prod.deb
+rm packages-microsoft-prod.deb
+sudo apt update
+sudo ACCEPT_EULA=Y apt install -y msodbcsql18
+sudo apt install -y python3-pyodbc
+
 cd "$WORK_DIR"
 
 # Download Bitwarden

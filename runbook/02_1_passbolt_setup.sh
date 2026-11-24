@@ -14,6 +14,9 @@ WORK_DIR="${WORK_DIR:-$HOME/passbolt}"
 mkdir -p "$WORK_DIR/certs"
 cd "$WORK_DIR" || exit 1
 
+echo "Installing Python MariaDB extraction dependency..."
+sudo apt install -y python3-pymysql
+
 if [[ ! -f "$WORK_DIR/certs/cert.pem" || ! -f "$WORK_DIR/certs/key.pem" ]]; then
     echo "Generating Passbolt self-signed certificate..."
 

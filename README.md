@@ -1,136 +1,274 @@
-# Bachelor thesis lab
+# Bachelor Thesis Lab
 
-This repository contains a reproducible Vaultwarden memory-analysis lab. The
-workflow creates known test data, runs controlled scenarios, captures container
-process memory, archives logs, and restores a clean baseline between scenarios.
-The scripts are intended for the VM described in [lab-versions.md](./lab-versions.md),
-not for a production password manager.
+This repository provides a reproducible memory-analysis lab for three password
+managers: Bitwarden, Vaultwarden, and Passbolt. It creates known test data,
+runs controlled scenarios, dumps container processes with `gcore`, archives
+artifacts, and restores a clean baseline between runs.
+
+The scripts are experimental and are intended for disposable VMs described in
+[lab-versions.md](./lab-versions.md), not for production environments.
 
 ## Prerequisites
 
-- The VM needs Docker Engine with the Compose plugin, rootless Docker, `gdb`,
-  `curl`, `wget`, `unzip`, `jq`, Python 3, and `sudo`.
-- Run commands from the repository root unless a command says otherwise.
+- Ubuntu VM with Docker Engine and the Docker Compose plugin.
+- Rootless Docker setup where applicable.
+- `gdb`, `git`, `curl`, `wget`, `jq`, `unzip`, `uuid-runtime`, Python 3, and
+  `sudo`.
+- For Passbolt database extraction, `python3-pymysql` is installed by
+  `runbook/02_1_passbolt_setup.sh`.
+- For Bitwarden database extraction,
+  `runbook/02_01_bitwarden_service_setup.sh` installs the Microsoft ODBC Driver
+  18 for SQL Server and the `python3-pyodbc` package.
 
-## One-time VM setup
+Run setup commands from the repository root unless stated otherwise.
 
-Run these steps in order on the VM:
+## VM Setup
 
-1. Install operating-system, Docker, rootless-Docker, and `gdb` dependencies:
-   `sudo ./runbook/01-vm-setup.sh`.
-2. Start Vaultwarden and Caddy. Set the host values first:
-   `HOST_USER=<host-user> HOST_DOMAIN=<host-or-ip> ./runbook/02-vaultwarden-setup.sh`.
-   The script copies the Compose files into `~/vaultwarden`, starts the
-   services, and copies Caddy's local CA certificate to `/tmp/caddy-root.crt`.
-3. **Manual host step:** copy `/tmp/caddy-root.crt` to the analysis host's
-   trusted CA directory and run its certificate update command. Add
-   `vaultwarden.lab` to DNS or `/etc/hosts`, pointing at the VM. Verify that
-   `https://vaultwarden.lab` opens without a certificate warning.
-4. Configure the Bitwarden CLI and log in:
-   `./runbook/03-bw-cli-setup.sh`.
-   Choose Vaultwarden when prompted. The script sets `COMPOSE_FILE`,
-   `SERVICE_CHOICE`, `PATH`, and `NODE_EXTRA_CA_CERTS` for later shells; start
-   a new shell or source `~/.bashrc` afterward.
-5. Create the known test items:
-   `cd runbook && ../runbook/04-generate-test-items.sh`.
-   This creates logins, folder data, an attachment, secure note, card,
-   identity, and marker values used by the scenarios.
-6. **Manual data-enrichment step (recommended):** add additional disposable
-   items, folders, notes, and attachments in the web UI or CLI. A fuller vault
-   gives the database classifier more columns and values to inspect.
-7. Back up that populated state as the scenario baseline:
-   `./runbook/05-backup-current-state.sh`.
-   Do this only after the manual additions. The script archives the current
-   service state and Bitwarden CLI state, then restores the baseline between
-   runs.
+Run the common setup:
 
-## Running scenarios
+```bash
+sudo ./runbook/01_vm_setup.sh
+```
 
-After setup and baseline creation, run all scenarios:
+Then follow the setup for the selected password manager.
+
+### Bitwarden
+
+Create the `bitwarden` service user and repository location:
+
+```bash
+sudo ./runbook/02_00_bitwarden_user_setup.sh
+sudo -iu bitwarden
+```
+
+The script clones the repository to `/opt/bitwarden/repo`. From there, configure
+and start the service:
+
+```bash
+HOST_USER=<host-user> HOST_DOMAIN=<host-or-ip> \
+  ./runbook/02_01_bitwarden_service_setup.sh
+```
+
+This installs Microsoft ODBC Driver 18, starts Bitwarden, copies its certificate
+to the host, and sets `SERVICE_CHOICE=1`.
+
+Complete the manual DNS/certificate steps and create an account as instructed
+by the script.
+
+### Vaultwarden
+
+```bash
+HOST_USER=<host-user> HOST_DOMAIN=<host-or-ip> \
+  ./runbook/02_2_vaultwarden_setup.sh
+```
+
+The script copies the Compose configuration to `~/vaultwarden`, starts Caddy
+and Vaultwarden, and copies Caddy's root certificate to the host.
+
+Complete the manual DNS/certificate steps and create an account.
+
+### Passbolt
+
+```bash
+HOST_USER=<host-user> HOST_DOMAIN=<host-or-ip> \
+  ./runbook/02_1_passbolt_setup.sh
+```
+
+The script creates or reuses certificates and Compose configuration, starts
+Passbolt, and sends a registration invitation.
+
+Complete the DNS/certificate setup, open `https://passbolt.lab`, and finish
+registration.
+
+## CLI Setup
+
+### Bitwarden CLI
+
+For Bitwarden or Vaultwarden:
+
+```bash
+./runbook/03_bw_cli_setup.sh
+```
+
+Choose the service and optionally enable API-key/2FA login.
+
+For API-key login, provide:
+
+- `BW_CLIENTID`
+- `BW_CLIENTSECRET`
+- the account master password
+
+The script stores these values in `~/.bashrc`, reloads it, logs in with
+`bw login --apikey`, and unlocks with `bw unlock --passwordenv BW_PASSWORD`.
+For normal login, the scripts continue to use the email and master password.
+
+### Passbolt CLI
+
+After registration:
+
+```bash
+./runbook/03_passbolt_cli_setup.sh
+```
+
+The script asks for the location of the private key and optionally enables
+non-interactive TOTP 2FA. If enabled, it saves `PASSBOLT_MFA_MODE` and
+`PASSBOLT_MFA_TOTP_TOKEN` in `~/.bashrc` and configures Passbolt with
+`--mfaMode non-interactive-totp --mfaTotpToken <secret>`.
+
+## Create Test Data and Baseline
+
+Create the known test items for all three services:
+
+```bash
+./runbook/04_generate_test_items.sh
+```
+
+This creates login data, folders, attachments where supported, secure notes,
+cards, identities, and marker values. Optionally add disposable data manually
+before creating the baseline.
+
+Back up and restore the populated baseline:
+
+```bash
+./runbook/05_backup_current_state.sh
+```
+
+The script preserves CLI settings and service state, with Passbolt MFA settings
+included when configured.
+
+## Running Scenarios
+
+Run all scenarios:
 
 ```bash
 ./scripts/run-all.sh
 ```
 
-Run selected scenarios, repeat them, and choose the amount of times they should run:
+Run selected scenarios:
 
 ```bash
 ./scripts/run-all.sh 1 4 7
+./scripts/run-all.sh s4 s5 s6
+```
+
+Repeat selected scenarios:
+
+```bash
 ./scripts/run-all.sh --repeat 3 1 2 3
 ./scripts/run-all.sh -n 3
 ```
 
-Each scenario starts the Compose services, performs its data operation, dumps
-the target process with `gcore`, and calls cleanup. Cleanup archives the Caddy
-log, stops Compose, logs out the CLI, archives run-specific state, and restores
-the baseline. If a previous run was interrupted, the shared startup helper
-detects running Compose containers and runs `docker compose down` before
-starting them again.
-
-The scenario scripts write core dumps and related files under `artifacts/`.
-Use the generated filenames to identify the scenario (`S1` through `S7`) and
-run timestamp.
-
-## Analysis
-
-Run analysis from the generated artifact directory (or pass explicit paths):
+The unified dispatcher is [scripts/scenario.sh](./scripts/scenario.sh). It can
+also run scenarios directly:
 
 ```bash
-cd artifacts
-python3 ../scripts/memory_analysis.py \
-  --core-dir . \
-  --baseline <baseline-core> \
-  --markers ../marker_log.csv \
-  --database <path-to-sqlite-db> \
+./scripts/scenario.sh 1 4 7
+./scripts/scenario.sh
+```
+
+Each scenario starts or resets the selected service, performs its operation,
+dumps all configured container processes, and runs cleanup. Cleanup restores
+the baseline and archives run-specific state.
+
+Core dumps and related files are written under `artifacts/`. A dump name
+contains the scenario and target container, for example:
+
+```text
+20261124-010000_S4_core.bitwarden-api
+```
+
+## Memory Analysis
+
+From the repository root:
+
+```bash
+python3 -m scripts.memory_analysis \
+  --core-dir artifacts \
+  --markers ../artifacts/marker_log.csv \
+  --database <sqlite-path> \
   --db-value users.password_hash \
   --db-value users.salt
 ```
 
-The script writes sorted strings, baseline/previous diffs, marker results,
-database-value representation searches (raw, hexadecimal, standard Base64,
-and URL-safe Base64), and `jwt_search.csv`. JWT rows include
-the recovered JWT-like token text and offset; protect this output accordingly.
-Marker and database-value reports intentionally record hashes/counts rather
-than recovered marker or database values.
-
-Classify a SQLite database with:
+For one baseline core dump:
 
 ```bash
-python3 scripts/classify_database.py <database.db> \
-  --output artifacts/column_classification.csv
+python3 -m scripts.memory_analysis \
+  --core-dir artifacts \
+  --baseline artifacts/<baseline-core-file>
 ```
 
-The classifier enumerates every SQLite table and column and reports populated
-values, observed formats, a thesis category, and a `manual_review` flag. The
-categories are **P** (plaintext personal data), **S** (plaintext
-security-relevant secret), **V** (password verifier), **K** (wrapped/encrypted
-key material), **C** (ciphertext), and **M** (metadata). EncString-shaped
-values and nested EncStrings in JSON are detected, but format matching does
-not prove cryptographic protection; interpret the report with the schema and
-Vaultwarden version. The SQLite database is the primary input. Preserve the
-database WAL, RSA key file, attachment files, and configuration file in the
-same artifact run for the persistent-storage review.
+For a multi-container baseline, repeat `--baseline` for each container:
 
-## Reset and troubleshooting
+```bash
+python3 -m scripts.memory_analysis \
+  --core-dir artifacts \
+  --baseline artifacts/<baseline-api-core> \
+  --baseline artifacts/<baseline-identity-core> \
+  --baseline artifacts/<baseline-mssql-core>
+```
 
-If a run stops halfway, check `docker compose ps` in `~/vaultwarden` and rerun
-the scenario; startup will stop stale running containers first. Do not delete
-the baseline directories unless you intend to rebuild the experiment.
+The script can also accept a glob for `--baseline`:
 
-If HTTPS fails, repeat the manual certificate-trust and hosts/DNS steps.
-If the CLI cannot connect, verify `NODE_EXTRA_CA_CERTS`, `bw config server`,
-the selected service profile, and that Caddy is running. If a baseline error is
-reported, rerun `05-backup-current-state.sh` after restoring the desired
-manual test data.
+```bash
+python3 -m scripts.memory_analysis \
+  --core-dir artifacts \
+  --baseline 'artifacts/*S1_core*'
+```
 
-## Scenario overview
+It writes sorted strings, GNU-diff baseline/previous comparisons, marker
+results, database-value representation searches, and JWT-like matches to
+`../artifacts/` by default. JWT rows contain recovered token text and should
+be protected as sensitive analysis data.
+
+## Database Classification
+
+For SQLite:
+
+```bash
+python3 -m scripts.classify_database \
+  --database <database.db> \
+  --output ../artifacts/column_classification.csv
+```
+
+The classifier reports populated SQLite table columns, observed formats,
+thesis categories, and manual-review flags. It also supports SQL Server and
+MariaDB through the shared database arguments.
+
+Categories are:
+
+- **P** plaintext personal data
+- **S** plaintext security-relevant secret
+- **V** password verifier
+- **K** wrapped or encrypted key material
+- **C** ciphertext
+- **M** metadata
+
+Format matches are not proof of encryption or key purpose. Ambiguous columns
+must be reviewed with the database schema and password-manager version.
+
+## Troubleshooting
+
+- If a run stops halfway, rerun it; startup detects stale Compose containers
+  and stops them before starting the service again.
+- Bitwarden or Vaultwarden CLI connection problems: verify
+  `NODE_EXTRA_CA_CERTS`, `bw config server`, `SERVICE_CHOICE`, and certificate
+  trust.
+- API-key login problems: verify `BW_CLIENTID`, `BW_CLIENTSECRET`,
+  `BW_PASSWORD`, and `bw unlock --passwordenv BW_PASSWORD --raw`.
+- Passbolt CLI/TOTP problems: verify `PASSBOLT_MFA_MODE`,
+  `PASSBOLT_MFA_TOTP_TOKEN`, and `passbolt verify`.
+- If baseline restore fails, rerun `05_backup_current_state.sh` after confirming
+  the intended baseline state.
+
+## Scenario Overview
 
 | Scenario | Description |
 |----------|-------------|
-| S1 | Start the container and dump the server process |
-| S2 | Log in and dump the server process |
-| S3 | Lock the vault and dump the server process |
-| S4 | Create an item and dump the server process |
-| S5 | Edit an item and dump the server process |
-| S6 | Delete an item and dump the server process |
-| S7 | List an item and dump the server process |
+| S1 | Start the service and dump configured process memory |
+| S2 | Log in and dump configured process memory |
+| S3 | Lock the vault or open a secret through Passbolt and dump process memory |
+| S4 | Create a test item and dump process memory |
+| S5 | Edit a test item and dump process memory |
+| S6 | Delete a test item and dump process memory |
+| S7 | Retrieve or list a test item and dump process memory |
