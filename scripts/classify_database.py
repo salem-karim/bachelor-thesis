@@ -316,8 +316,10 @@ def thesis_category(column, json_categories, formats):
     if "public" in lowered or "PGP_PUBLIC_KEY" in formats:
         return (
             "M",
-            "Potential public key material based on column name and observed_format; not verified",
+            "Potential public key material based on column name and observed_format; not verified.",
         )
+    if "kdf" in lowered:
+        return "S", "Potential KDF Algorithm relevant value based on column name; not verified."
 
     categories = set()
     notes = []
