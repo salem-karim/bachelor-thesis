@@ -179,6 +179,32 @@ contains the scenario and target container, for example:
 
 ## Memory Analysis
 
+### Restore the split artifact archives
+
+The provided artifacts are split into consecutive archive parts. Reassemble
+each ZIP before extracting it.
+
+For the Bitwarden artifacts:
+
+```bash
+mkdir -p artifacts-bw-extracted
+cat artifacts-bw/artifacts-bw.zip.part-* > artifacts-bw/artifacts-bw.zip
+unzip -t artifacts-bw/artifacts-bw.zip
+unzip -q artifacts-bw/artifacts-bw.zip -d artifacts-bw-extracted
+```
+
+For the Passbolt artifacts:
+
+```bash
+mkdir -p artifacts-passbolt-extracted
+cat artifacts-passbolt/artifacts-passbolt.zip.part-* > artifacts-passbolt/artifacts-passbolt.zip
+unzip -t artifacts-passbolt/artifacts-passbolt.zip
+unzip -q artifacts-passbolt/artifacts-passbolt.zip -d artifacts-passbolt-extracted
+```
+
+On macOS, the shell expands the `part-*` files in filename order. Keep all
+parts in the directory and do not rename or omit them.
+
 From the repository root:
 
 ```bash
